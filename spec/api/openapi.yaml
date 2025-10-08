@@ -1,0 +1,314 @@
+openapi: 3.0.3
+info:
+  title: Fire Pocker API
+  version: 0.1.0
+  description: >
+    REST API definition for Fire Pocker. All endpoints are served from the
+    Next.js App Router running inside the Fargate task.
+servers:
+  - url: https://api.example.com
+    description: Production (placeholder)
+  - url: https://stg.api.example.com
+    description: Staging (placeholder)
+tags:
+  - name: PBI
+    description: Notion 上のプロダクトバックログアイテム (PBI) に関する情報取得 API
+  - name: Session
+    description: プランニングポーカーセッションの作成・管理 API
+components:
+  securitySchemes:
+    SessionSecretHeader:
+      type: apiKey
+      in: header
+      name: x-session-secret
+      description: Shared secret used by facilitators to create sessions and fetch PBIs.
+    JoinToken:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC
+      description: Short lived token issued per session participant.
+  schemas:
+    PBI:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 12345678-abcd-ef00-1234-56789abcdef0
+        title:
+          type: string
+        status:
+          type: string
+          example: In Progress
+        storyPoint:
+          type: integer
+          nullable: true
+        assignee:
+          type: string
+          nullable: true
+        epic:
+          type: string
+          nullable: true
+        lastEstimatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    SimilarPBI:
+      allOf:
+        - $ref: '#/components/schemas/PBI'
+        - type: object
+          properties:
+            notionUrl:
+              type: string
+              format: uri
+    SessionRequest:
+      type: object
+      required:
+        - title
+        - facilitator
+        - pbiIds
+      properties:
+        title:
+          type: string
+        facilitator:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+          required:
+            - id
+            - name
+        pbiIds:
+          type: array
+          items:
+            type: string
+    SessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          example: sess_01HTR0WXS4
+        joinToken:
+          type: string
+      required:
+        - sessionId
+        - joinToken
+    SessionState:
+      type: object
+      properties:
+        meta:
+          type: object
+          properties:
+            title:
+              type: string
+            facilitatorId:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+        votes:
+          type: object
+          additionalProperties:
+            type: integer
+        participants:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              displayName:
+                type: string
+        phase:
+          type: string
+          enum: [READY, VOTING, REVEAL, FINALIZED]
+    FinalizeRequest:
+      type: object
+      required:
+        - finalPoint
+      properties:
+        finalPoint:
+          type: integer
+        memo:
+          type: string
+          nullable: true
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+paths:
+  /api/pbis:
+    get:
+      tags: [PBI]
+      summary: Notion の PBI一覧DB から見積もり対象候補の一覧を取得する
+      security:
+        - SessionSecretHeader: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+          required: false
+        - name: search
+          in: query
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PBI'
+                  nextCursor:
+                    type: string
+                    nullable: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+  /api/pbis/{id}/similar:
+    get:
+      tags: [PBI]
+      summary: 指定した PBI と同じストーリーポイントを過去に持っていた PBI を最大10件取得する
+      security:
+        - SessionSecretHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Similar PBIs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SimilarPBI'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+        '500':
+          description: Server error
+  /api/sessions:
+    post:
+      tags: [Session]
+      summary: 選択した PBI を対象に新しいプランニングポーカーセッションを作成する
+      security:
+        - SessionSecretHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Server error
+  /api/sessions/{sessionId}:
+    get:
+      tags: [Session]
+      summary: 特定セッションの現在の状態を HTTP 経由で取得する (WebSocket フォールバック用)
+      security:
+        - JoinToken: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionState'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Session not found
+        '500':
+          description: Server error
+  /api/sessions/{sessionId}/finalize:
+    post:
+      tags: [Session]
+      summary: 合意したストーリーポイントを Notion に書き込みセッションを確定させる
+      security:
+        - JoinToken: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeRequest'
+      responses:
+        '200':
+          description: Finalized successfully
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+        '409':
+          description: Conflict (already finalized)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
