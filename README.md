@@ -27,9 +27,47 @@ pnpm install
 pnpm dev      # 開発サーバー起動 (http://localhost:3000)
 pnpm lint     # ESLint (next/core-web-vitals + prettier)
 pnpm typecheck
+pnpm test     # 単体テスト (Vitest)
+pnpm test:run # CI 向けテスト実行 (終了コード重視)
+pnpm test:coverage # カバレッジレポート生成
 ```
 
-> **NOTE:** 実際の Notion API 接続は未実装です。環境変数が設定されていない場合は、自動的にモッククライアントが選択されます。
+> **NOTE:** 環境変数が未設定の場合はモックデータを使用します。Notion 連携を有効にする際は [Notion 連携の設定](#notion-連携の設定) を参照してください。
+
+## Notion 連携の設定
+
+下記の環境変数を `.env.local` もしくはプロジェクト設定に追加すると、実際の Notion DB から PBI を取得できます。
+
+```
+NOTION_TOKEN=secret_xxx                        # Notion インテグレーションのシークレット
+NOTION_PBI_DB_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxx  # PBI 一覧データベース ID
+NOTION_SESSION_DB_ID=yyyyyyyyyyyyyyyyyyyyyyyy  # (任意) セッション履歴を保存する DB ID
+NOTION_PBI_TITLE_PROPERTY=Title                # (任意) タイトル列名
+NOTION_PBI_STATUS_PROPERTY=Status              # (任意) ステータス列名
+NOTION_PBI_STORYPOINT_PROPERTY=StoryPoint      # (任意) ストーリーポイント列名
+NOTION_PBI_ASSIGNEE_PROPERTY=Assignee          # (任意) 担当者列名
+NOTION_PBI_EPIC_PROPERTY=Epic                  # (任意) エピック列名
+NOTION_PBI_LASTESTIMATED_PROPERTY=LastEstimatedAt # (任意) 最終見積り日時列名
+```
+
+プロパティ名は設計書通り `Title`, `Status`, `StoryPoint`, `Assignee`, `Epic`, `LastEstimatedAt` を想定しています。値が取得できない場合はモックデータに自動フォールバックします。
+
+### データベース共有手順
+
+1. Notion で対象の PBI データベースを開き、右上の **Share** → **Connect** から今回作成したインテグレーションを招待します。共有しないと API からは 404/403 が返ります。
+2. `.env.local` に環境変数を設定し、`pnpm dev` を再起動します。
+3. 列タイプは以下を推奨します（テキスト等でも動作しますが、型に応じて自動的にフィルターが調整されます）。
+
+| 列名 (デフォルト) | 推奨 Notion 型 | 備考 |
+| ----------------- | -------------- | ---- |
+| Title              | Title          | Notion 既定列 |
+| Status             | Select / Multi-select | 指定があればフィルタに使用 |
+| StoryPoint         | Number         | 見積もり値 |
+| Assignee           | People / Text  | 任意 |
+| Epic               | Select / Text  | 任意 |
+| LastEstimatedAt    | Date           | 無ければソートされません |
+
+設定画面 (`/settings`) では、取得済みの環境変数とプロパティ名を確認できます。
 
 ## 今後の拡張ポイント
 

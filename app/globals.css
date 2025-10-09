@@ -137,3 +137,82 @@ body {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(233, 237, 245, 0.82);
 }
+
+.dashboard-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: rgba(233, 237, 245, 0.9);
+}
+
+.form-input {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.9rem;
+  background: rgba(7, 9, 16, 0.95);
+  color: rgba(233, 237, 245, 0.94);
+}
+
+.form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-primary {
+  align-self: flex-start;
+  border: none;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  background: linear-gradient(90deg, #4f6dff 0%, #6f8eff 100%);
+  color: #f2f4ff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feedback {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.feedback.success {
+  background: rgba(60, 184, 120, 0.15);
+  color: #9be7c4;
+}
+
+.feedback.error {
+  background: rgba(220, 53, 69, 0.15);
+  color: #f38a9c;
+}
+
+.feedback.warning {
+  background: rgba(255, 193, 7, 0.12);
+  color: #ffd166;
+}
+
+.feedback code {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}

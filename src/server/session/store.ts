@@ -9,9 +9,11 @@ type SessionRecord = {
 };
 
 const store = new Map<string, SessionRecord>();
+const tokenIndex = new Map<string, string>();
 
 export const upsertSession = (sessionId: string, record: SessionRecord) => {
   store.set(sessionId, record);
+  tokenIndex.set(record.joinToken, sessionId);
 };
 
 export const getSessionRecord = (sessionId: string): SessionRecord | null => {
@@ -22,6 +24,7 @@ export const getSessionRecord = (sessionId: string): SessionRecord | null => {
 
   if (record.expiresAt < Date.now()) {
     store.delete(sessionId);
+    tokenIndex.delete(record.joinToken);
     return null;
   }
 
@@ -46,7 +49,21 @@ export const countSessions = () => {
   for (const [sessionId, record] of store.entries()) {
     if (record.expiresAt < Date.now()) {
       store.delete(sessionId);
+      tokenIndex.delete(record.joinToken);
     }
   }
   return store.size;
+};
+
+export const clearSessions = () => {
+  store.clear();
+  tokenIndex.clear();
+};
+
+export const getSessionRecordByJoinToken = (token: string): SessionRecord | null => {
+  const sessionId = tokenIndex.get(token);
+  if (!sessionId) {
+    return null;
+  }
+  return getSessionRecord(sessionId);
 };

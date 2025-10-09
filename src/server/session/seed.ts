@@ -16,7 +16,7 @@ export const ensureDemoSession = () => {
       title: 'デモセッション: 類似 PBI レビュー',
       facilitatorId: 'facilitator_demo',
       createdAt: nowIsoString(),
-      pbiIds: ['pbi_001', 'pbi_002', 'pbi_004'],
+      pbiIds: [],
     },
     phase: 'VOTING',
     votes: {
@@ -41,7 +41,7 @@ export const ensureDemoSession = () => {
         joinedAt: nowIsoString(),
       },
     ],
-    activePbiId: 'pbi_001',
+    activePbiId: null,
   };
 
   upsertSession(seedSessionId, {

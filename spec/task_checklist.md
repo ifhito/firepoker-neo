@@ -2,24 +2,24 @@
 
 ## 0. プロジェクトセットアップ
 - [ ] リポジトリ初期化とブランチ運用ルール策定
-- [ ] pnpm/Node.js 20 環境構築とベース依存関係の追加
-- [ ] ESLint + Prettier + TypeScript strict 設定の適用
+- [x] pnpm/Node.js 20 環境構築とベース依存関係の追加
+- [x] ESLint + Prettier + TypeScript strict 設定の適用
 - [ ] CI (GitHub Actions) の雛形作成（lint・type-check・test）
 
 ## 1. Notion 連携
-- [ ] Notion インテグレーションと API シークレットの取得
-- [ ] PBI一覧DB / PBI管理DB のスキーマ定義確認と ID 収集
-- [ ] `@notionhq/client` を利用した共通クライアント実装
-- [ ] PBI 一覧取得・検索 API (`GET /api/pbis`) の実装
-- [ ] 類似 PBI 取得 API (`GET /api/pbis/{id}/similar`) の実装
+- [x] Notion インテグレーションと API シークレットの取得
+- [x] PBI一覧DB / PBI管理DB のスキーマ定義確認と ID 収集
+- [x] `@notionhq/client` を利用した共通クライアント実装
+- [x] PBI 一覧取得・検索 API (`GET /api/pbis`) の実装
+- [x] 類似 PBI 取得 API (`GET /api/pbis/{id}/similar`) の実装
 - [ ] ストーリーポイント更新 & 履歴登録処理の実装 (`POST /api/sessions/{id}/finalize`)
 
 ## 2. フロントエンド (Next.js App Router, Feature-based)
-- [ ] フォルダ構成 (feature-based) の scaffold：`app/(authenticated)/dashboard`, `session/[sessionId]`, `settings`
-- [ ] UI コンポーネント (PBI パネル、フィボナッチカード、投票状況、類似 PBI サイドパネル)
+- [x] フォルダ構成 (feature-based) の scaffold：`app/(authenticated)/dashboard`, `session/[sessionId]`, `settings`
+- [x] UI コンポーネント (PBI パネル、フィボナッチカード、投票状況、類似 PBI サイドパネル)
 - [ ] React Query + Zustand によるデータ取得・リアルタイム状態管理
-- [ ] WebSocket クライアントラッパーと `useRealtimeSession` フック
-- [ ] セッション作成フォームと `POST /api/sessions` 呼び出し
+- [x] WebSocket クライアントラッパーと `useRealtimeSession` フック
+- [x] セッション作成フォームと `POST /api/sessions` 呼び出し
 - [ ] HTTP フォールバック用の `useSessionState` 実装
 - [ ] アクセシビリティ対応 (キーボード操作、ARIA 属性、ダークモード差分確認)
 
@@ -39,9 +39,9 @@
 - [ ] タスク再起動時の状態再同期手順検証
 
 ## 5. API 層
-- [ ] App Router Route Handlers (`/api/*`) の実装とバリデーション (Zod 等)
-- [ ] 共通レスポンス (`{ code, message, retryable }`) の実装
-- [ ] OpenAPI (`spec/api/openapi.yaml`) と実装の同期（自動生成・検証フロー検討）
+- [x] App Router Route Handlers (`/api/*`) の実装とバリデーション (Zod 等)
+- [x] 共通レスポンス (`{ code, message, retryable }`) の実装
+- [x] OpenAPI (`spec/api/openapi.yaml`) と実装の同期（自動生成・検証フロー検討）
 - [ ] Swagger UI / Redoc 等のプレビュー環境整備
 
 ## 6. インフラ (AWS)
@@ -62,7 +62,12 @@
 - [ ] アラート・Runbook の作成と共有
 
 ## 8. テスト・品質保証
-- [ ] 単体テスト (Notion リポジトリ、WebSocket ハンドラ、Redis ユーティリティ)
+- [x] テストランナー (Vitest) 導入とスクリプト整備
+- [x] 単体テスト (Notion/PBI サービス)
+- [x] 単体テスト (セッションサービス)
+- [x] API ルートテスト (GET `/api/sessions/{sessionId}`)
+- [ ] 単体テスト (WebSocket ハンドラ)
+- [ ] 単体テスト (Redis ユーティリティ)
 - [ ] 統合テスト (Docker Compose で Next.js + WS + Redis を起動)
 - [ ] E2E テスト (Playwright) で主要ユーザーフローを検証
 - [ ] パフォーマンステスト（Locust/K6 等で WebSocket/REST の負荷確認）
@@ -75,7 +80,7 @@
 - [ ] ロールバック手順とサイト公開手順書の作成
 
 ## 10. ドキュメント・ナレッジ共有
-- [ ] README / CONTRIBUTING 更新 (セットアップ、コマンド一覧、アーキテクチャ概要)
+- [x] README / CONTRIBUTING 更新 (セットアップ、コマンド一覧、アーキテクチャ概要)
 - [ ] Notion 連携手順書・API キー管理ポリシー作成
 - [ ] 運用 Runbook (アラート対応、障害時再起動手順)
 - [ ] 開発完了後のふりかえりミーティングと改善記録

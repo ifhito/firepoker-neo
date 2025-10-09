@@ -8,7 +8,11 @@ import type {
 import { generateJoinToken, generateSessionId } from '@/lib/ids';
 import { nowIsoString } from '@/server/utils/time';
 import { HttpError } from '@/server/http/error';
-import { getSessionRecord, updateSessionState, upsertSession } from './store';
+import {
+  getSessionRecord,
+  updateSessionState,
+  upsertSession,
+} from './store';
 import { findPbi } from '@/server/pbi/service';
 import { ensureDemoSession } from './seed';
 
@@ -61,6 +65,19 @@ export const getSessionState = (sessionId: string): SessionState => {
   if (!record) {
     throw new HttpError(404, 'NotFound', 'Session not found.');
   }
+  return record.state;
+};
+
+export const getSessionStateAuthorized = (sessionId: string, joinToken: string): SessionState => {
+  const record = getSessionRecord(sessionId);
+  if (!record) {
+    throw new HttpError(404, 'NotFound', 'Session not found.');
+  }
+
+  if (record.joinToken !== joinToken) {
+    throw new HttpError(401, 'Unauthorized', 'Invalid join token.');
+  }
+
   return record.state;
 };
 

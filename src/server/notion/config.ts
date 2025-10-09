@@ -4,6 +4,12 @@ const envSchema = z.object({
   NOTION_TOKEN: z.string().min(1).optional(),
   NOTION_PBI_DB_ID: z.string().min(1).optional(),
   NOTION_SESSION_DB_ID: z.string().min(1).optional(),
+  NOTION_PBI_TITLE_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_STATUS_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_STORYPOINT_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_ASSIGNEE_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_EPIC_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_LASTESTIMATED_PROPERTY: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -18,6 +24,12 @@ export const notionEnv = parsed.success
       NOTION_TOKEN: undefined,
       NOTION_PBI_DB_ID: undefined,
       NOTION_SESSION_DB_ID: undefined,
+      NOTION_PBI_TITLE_PROPERTY: undefined,
+      NOTION_PBI_STATUS_PROPERTY: undefined,
+      NOTION_PBI_STORYPOINT_PROPERTY: undefined,
+      NOTION_PBI_ASSIGNEE_PROPERTY: undefined,
+      NOTION_PBI_EPIC_PROPERTY: undefined,
+      NOTION_PBI_LASTESTIMATED_PROPERTY: undefined,
     };
 
 const missing = Object.entries(notionEnv)
@@ -29,3 +41,12 @@ if (missing.length > 0) {
     `Notion environment variables missing: ${missing.join(', ')}. Falling back to mock data source.`,
   );
 }
+
+export const notionPropertyConfig = {
+  title: notionEnv.NOTION_PBI_TITLE_PROPERTY ?? 'Title',
+  status: notionEnv.NOTION_PBI_STATUS_PROPERTY ?? 'Status',
+  storyPoint: notionEnv.NOTION_PBI_STORYPOINT_PROPERTY ?? 'StoryPoint',
+  assignee: notionEnv.NOTION_PBI_ASSIGNEE_PROPERTY ?? 'Assignee',
+  epic: notionEnv.NOTION_PBI_EPIC_PROPERTY ?? 'Epic',
+  lastEstimatedAt: notionEnv.NOTION_PBI_LASTESTIMATED_PROPERTY ?? 'LastEstimatedAt',
+};

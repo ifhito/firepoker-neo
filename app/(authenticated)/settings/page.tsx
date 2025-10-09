@@ -1,8 +1,8 @@
-import { notionEnv } from '@/server/notion/config';
+import { notionEnv, notionPropertyConfig } from '@/server/notion/config';
 
 export const dynamic = 'force-static';
 
-const settingItems = [
+const baseItems = [
   {
     name: 'Notion Token',
     value: notionEnv.NOTION_TOKEN ? '設定済み' : '未設定 (モックデータ使用中)',
@@ -16,7 +16,19 @@ const settingItems = [
   {
     name: 'Session Database ID',
     value: notionEnv.NOTION_SESSION_DB_ID ?? '未設定',
-    description: '見積もり結果を記録する履歴用 DB。Notion API 経由で書き込みます。',
+    description: '見積もり結果を記録する履歴用 DB。指定が無ければ Notion には追記されません。',
+  },
+];
+
+const propertyItems = [
+  { name: 'Title property', value: notionPropertyConfig.title ?? 'Title' },
+  { name: 'Status property', value: notionPropertyConfig.status ?? 'Status' },
+  { name: 'StoryPoint property', value: notionPropertyConfig.storyPoint ?? 'StoryPoint' },
+  { name: 'Assignee property', value: notionPropertyConfig.assignee ?? 'Assignee' },
+  { name: 'Epic property', value: notionPropertyConfig.epic ?? 'Epic' },
+  {
+    name: 'LastEstimatedAt property',
+    value: notionPropertyConfig.lastEstimatedAt ?? 'LastEstimatedAt',
   },
 ];
 
@@ -35,7 +47,7 @@ export default function SettingsPage() {
           </tr>
         </thead>
         <tbody>
-          {settingItems.map((item) => (
+          {baseItems.map((item) => (
             <tr key={item.name}>
               <td>{item.name}</td>
               <td>{item.value}</td>
@@ -44,6 +56,16 @@ export default function SettingsPage() {
           ))}
         </tbody>
       </table>
+
+      <h3>使用中の PBI プロパティ名</h3>
+      <p>未設定の場合は括弧内のデフォルト値が利用されます。</p>
+      <ul>
+        {propertyItems.map((item) => (
+          <li key={item.name}>
+            {item.name}: <code>{item.value}</code>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
