@@ -3,8 +3,9 @@ import type { ReactNode } from 'react';
 import '@/mocks/pbis';
 import { ensureDemoSession } from '@/server/session/seed';
 import './globals.css';
+import { ReactQueryProvider } from '@/components/providers/ReactQueryProvider';
 
-ensureDemoSession();
+void ensureDemoSession();
 
 export const metadata: Metadata = {
   title: 'Fire Pocker',
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               ましょう。
             </p>
           </header>
-          <main className="app-main">{children}</main>
+          <ReactQueryProvider>
+            <main className="app-main">{children}</main>
+          </ReactQueryProvider>
           <footer className="app-footer">
             &copy; {new Date().getFullYear()} Fire Pocker Team — Internal prototype
           </footer>

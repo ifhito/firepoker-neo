@@ -6,7 +6,11 @@ export type RealtimeEventName =
   | 'reset_votes'
   | 'finalize_point'
   | 'finalized'
-  | 'error';
+  | 'error'
+  | 'ping'
+  | 'pbi_add'
+  | 'pbi_remove'
+  | 'pbi_set_active';
 
 export interface RealtimeEnvelope<T = unknown> {
   sessionId: string;

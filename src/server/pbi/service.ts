@@ -20,3 +20,9 @@ export const listSimilarPbis = async (id: string): Promise<SimilarPBIResponse> =
   const items = await notion.listSimilarPbis(id);
   return { items };
 };
+
+export const listPbisByStoryPoints = async (points: number[]): Promise<SimilarPBIResponse> => {
+  const notion = getNotionClient();
+  const items = await notion.listPbisByStoryPoints(points);
+  return { items };
+};

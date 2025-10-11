@@ -30,7 +30,7 @@ export interface SessionRequestBody {
     id: string;
     name: string;
   };
-  pbiIds: string[];
+  pbiIds?: string[];
 }
 
 export interface SessionResponseBody {

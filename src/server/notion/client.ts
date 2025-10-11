@@ -22,7 +22,7 @@ const propertyOptions = {
   ...(LAST_ESTIMATED_AT_PROPERTY ? { lastEstimatedAtProperty: LAST_ESTIMATED_AT_PROPERTY } : {}),
 };
 
-const ALLOWED_SIMILAR_STATUSES = ['Done', 'Released'];
+const ALLOWED_SIMILAR_STATUSES = ['Backlog', 'Ready', 'InProgress', 'Done', 'Released'];
 const NOTION_API_BASE = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
@@ -38,6 +38,7 @@ export interface NotionClient {
   listPBIs(params: { status?: string; search?: string }): Promise<ProductBacklogItem[]>;
   findPBI(id: string): Promise<ProductBacklogItem | null>;
   listSimilarPbis(pbiId: string): Promise<ProductBacklogItem[]>;
+  listPbisByStoryPoints(points: number[]): Promise<ProductBacklogItem[]>;
   updateStoryPoint(pbiId: string, point: number, memo?: string | null): Promise<void>;
 }
 
@@ -80,6 +81,24 @@ class MockNotionClient implements NotionClient {
         return timeB - timeA;
       })
       .slice(0, 10);
+  }
+
+  async listPbisByStoryPoints(points: number[]) {
+    const allowedStatuses = new Set(ALLOWED_SIMILAR_STATUSES);
+    
+    return this.dataset
+      .filter(
+        (item) =>
+          item.storyPoint !== null &&
+          points.includes(item.storyPoint) &&
+          item.lastEstimatedAt &&
+          allowedStatuses.has(item.status),
+      )
+      .sort((a, b) => {
+        const timeA = a.lastEstimatedAt ? Date.parse(a.lastEstimatedAt) : 0;
+        const timeB = b.lastEstimatedAt ? Date.parse(b.lastEstimatedAt) : 0;
+        return timeB - timeA;
+      });
   }
 
   async updateStoryPoint(pbiId: string, point: number) {
@@ -152,10 +171,11 @@ class RealNotionClient implements NotionClient {
     const filterClauses: any[] = [];
     if (params.status && STATUS_PROPERTY) {
       const statusType = schema[STATUS_PROPERTY];
-      if (statusType === 'select') {
+      if (statusType === 'select' || statusType === 'status') {
+        const key = statusType === 'status' ? 'status' : 'select';
         filterClauses.push({
           property: STATUS_PROPERTY,
-          select: { equals: params.status },
+          [key]: { equals: params.status },
         });
       } else if (statusType === 'multi_select') {
         filterClauses.push({
@@ -222,7 +242,7 @@ class RealNotionClient implements NotionClient {
 
   async listSimilarPbis(pbiId: string) {
     const source = await this.findPBI(pbiId);
-    if (!source || source.storyPoint == null) {
+    if (!source) {
       return [];
     }
 
@@ -238,18 +258,28 @@ class RealNotionClient implements NotionClient {
 
     const filters: any[] = [];
 
-    if (STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
+    if (source.storyPoint != null && STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
       filters.push({ property: STORY_POINT_PROPERTY, number: { equals: source.storyPoint } });
     }
 
     if (STATUS_PROPERTY && schema[STATUS_PROPERTY]) {
-      filters.push({
-        or: ALLOWED_SIMILAR_STATUSES.map((status) =>
-          schema[STATUS_PROPERTY] === 'multi_select'
-            ? { property: STATUS_PROPERTY, multi_select: { contains: status } }
-            : { property: STATUS_PROPERTY, select: { equals: status } },
-        ),
-      });
+      const statusType = schema[STATUS_PROPERTY];
+      if (statusType === 'multi_select') {
+        filters.push({
+          or: ALLOWED_SIMILAR_STATUSES.map((status) => ({
+            property: STATUS_PROPERTY,
+            multi_select: { contains: status },
+          })),
+        });
+      } else if (statusType === 'select' || statusType === 'status') {
+        const key = statusType === 'status' ? 'status' : 'select';
+        filters.push({
+          or: ALLOWED_SIMILAR_STATUSES.map((status) => ({
+            property: STATUS_PROPERTY,
+            [key]: { equals: status },
+          })),
+        });
+      }
     }
 
     const response = (await this.notionFetch(`/databases/${formatNotionId(this.pbiDatabaseId)}/query`, {
@@ -266,7 +296,52 @@ class RealNotionClient implements NotionClient {
       }),
     }));
 
-    return extractPages(response as any, propertyOptions).filter((item) => item.id !== pbiId);
+    return extractPages(response as any, propertyOptions).filter((item: ProductBacklogItem) => item.id !== pbiId);
+  }
+
+  async listPbisByStoryPoints(points: number[]) {
+    if (points.length === 0) {
+      return [];
+    }
+
+    const schema = await this.loadSchema();
+    const sorts = LAST_ESTIMATED_AT_PROPERTY && schema[LAST_ESTIMATED_AT_PROPERTY] === 'date'
+      ? [
+          {
+            property: LAST_ESTIMATED_AT_PROPERTY,
+            direction: 'descending',
+          },
+        ]
+      : undefined;
+
+    // 複数のポイントに対応するフィルター（Statusに関わらず全て取得）
+    let filter: any = undefined;
+    
+    if (STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
+      if (points.length === 1) {
+        filter = { property: STORY_POINT_PROPERTY, number: { equals: points[0] } };
+      } else {
+        filter = {
+          or: points.map(point => ({
+            property: STORY_POINT_PROPERTY,
+            number: { equals: point }
+          }))
+        };
+      }
+    }
+
+    const query = {
+      filter,
+      ...(sorts ? { sorts } : {}),
+      page_size: 100,
+    };
+
+    const response = (await this.notionFetch(`/databases/${formatNotionId(this.pbiDatabaseId)}/query`, {
+      method: 'POST',
+      body: JSON.stringify(query),
+    }));
+
+    return extractPages(response as any, propertyOptions);
   }
 
   async updateStoryPoint(pbiId: string, point: number, memo?: string | null) {
@@ -322,10 +397,16 @@ let cachedClient: NotionClient | null = null;
 
 export const getNotionClient = (): NotionClient => {
   if (cachedClient) {
+    console.log('[NotionClient] Using cached client');
     return cachedClient;
   }
 
   if (notionEnv.NOTION_TOKEN && notionEnv.NOTION_PBI_DB_ID) {
+    console.log('[NotionClient] Initializing RealNotionClient with:', {
+      token: notionEnv.NOTION_TOKEN.substring(0, 10) + '...',
+      pbiDbId: notionEnv.NOTION_PBI_DB_ID,
+      sessionDbId: notionEnv.NOTION_SESSION_DB_ID,
+    });
     cachedClient = new RealNotionClient(
       notionEnv.NOTION_TOKEN,
       notionEnv.NOTION_PBI_DB_ID,
@@ -334,6 +415,7 @@ export const getNotionClient = (): NotionClient => {
     return cachedClient;
   }
 
+  console.log('[NotionClient] Falling back to MockNotionClient');
   const dataset: ProductBacklogItem[] = (globalThis as any).__firePockerMockPbis ?? [];
   cachedClient = new MockNotionClient(dataset);
   return cachedClient;

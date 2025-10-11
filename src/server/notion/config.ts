@@ -32,6 +32,13 @@ export const notionEnv = parsed.success
       NOTION_PBI_LASTESTIMATED_PROPERTY: undefined,
     };
 
+console.log('[Notion Config] Environment variables loaded:', {
+  hasToken: !!notionEnv.NOTION_TOKEN,
+  hasPbiDbId: !!notionEnv.NOTION_PBI_DB_ID,
+  token: notionEnv.NOTION_TOKEN ? notionEnv.NOTION_TOKEN.substring(0, 10) + '...' : 'undefined',
+  pbiDbId: notionEnv.NOTION_PBI_DB_ID,
+});
+
 const missing = Object.entries(notionEnv)
   .filter(([, value]) => !value)
   .map(([key]) => key);

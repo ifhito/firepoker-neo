@@ -9,7 +9,7 @@ const bodySchema = z.object({
     id: z.string().min(1),
     name: z.string().min(1),
   }),
-  pbiIds: z.array(z.string().min(1)).min(1),
+  pbiIds: z.array(z.string().min(1)).optional().default([]),
 });
 
 export async function POST(request: Request) {
