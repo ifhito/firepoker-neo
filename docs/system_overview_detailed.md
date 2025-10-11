@@ -33,7 +33,8 @@ graph LR
 ```
 
 ## 3. フロントエンド構成 (Next.js)
-- `app/(authenticated)/dashboard` と `app/(authenticated)/session/[sessionId]` が主要ページ。ページ初期化時に Route Handler を介した SSR で初期データを取得する。
+- `app/page.tsx` (Home) が ROOM 作成フォームを提供し、`app/intake/page.tsx` をそのままトップへ統合した構成。
+- `app/(authenticated)/session/[sessionId]` がセッション進行用の主要画面。
 - `src/components/providers/ReactQueryProvider.tsx` が React Query をラップし、キャッシュキーは `['pbis']`, `['session', sessionId]` 等。
 - リアルタイム状態は `src/store/sessionRealtime.ts` の Zustand ストアが保持し、`useRealtimeSession` フックで WebSocket との仲介を行う。
 - ドメイン型は `src/domain/session.ts`・`src/domain/pbi.ts` に定義し、UI/サーバー双方で共有。
@@ -74,7 +75,7 @@ graph LR
 
 ## 8. 代表的なデータフロー
 1. **セッション作成**
-   1. Dashboard から POST `/api/sessions`。
+   1. Home (/) でフォーム送信 → POST `/api/sessions`。
    2. `createSession` が `sessionId` と `joinToken` を生成し、ファシリテーターを参加者リストに追加。
    3. Redis に TTL 付きで保存し、レスポンスで `state` と `joinToken` を返す。
 2. **入室**
@@ -138,26 +139,22 @@ graph LR
 
 ```mermaid
 flowchart TD
-  A[Authenticated user<br/>dashboard] -->|SSR fetch| B[Dashboard view]
-  B -->|Click create session| C[CreateSessionForm modal]
-  C -->|Select PBIs & submit| D{POST /api/sessions}
-  D -->|201 with sessionId/joinToken| E[Share session URL]
-  E -->|Facilitator opens| F[SessionDetailClient]
-  E -->|Share link| G[Participant browser]
-  G -->|Initial visit| H([GET /api/sessions/:id])
-  H -->|200| I[Render initial snapshot]
-  J[/api/ws/]
-  F -->|Open WebSocket| J
-  I -->|Open WebSocket| J
-  J -->|Send state_sync| K[Realtime voting UI]
-  K -->|Vote / control| J
-  K -->|Finalize| L([POST /api/sessions/:id/finalize])
-  L -->|Update| M[Notion DB]
-  L -->|Return result| N[Result dialog]
+  A[Host visits Home (/)] -->|Fill form| B{POST /api/sessions}
+  B -->|201 sessionId<br/>joinToken| C[Share session URL]
+  C -->|Facilitator opens| D[SessionDetailClient (/session/{id})]
+  C -->|Share link| E[Participant join page]
+  E -->|Submit name| F{POST /api/sessions/:id/join}
+  F -->|Success| G[Participant view]
+  D -->|Open WebSocket| H[/api/ws/]
+  G -->|Open WebSocket| H
+  H -->|state_sync| I[Realtime voting UI]
+  I -->|Finalize| J([POST /api/sessions/:id/finalize])
+  J -->|Update| K[Notion DB]
+  J -->|Return result| L[Result dialog]
 ```
 
-- ダッシュボードは SSR で最新の PBI リストやセッション履歴を表示し、React Query がクライアント側更新を担う。
-- セッション作成完了後は joinToken 含む URL を提示し、同 URL 経由で参加者がセッション詳細画面へ遷移する。
+- ホーム画面でセッションを作成すると joinToken 含む URL が生成され、ホストはそのままセッション詳細へ遷移する。
+- 参加者は共有 URL の join ページから表示名を登録し、同一のリアルタイムセッションへ合流する。
 - セッション詳細 (`SessionDetailClient`) は初回ロード時に HTTP スナップショットを取得したうえで WebSocket を確立し、`state_sync` イベントで UI を更新する。
 - 投票やフェーズ操作は WebSocket を通じて即座に反映され、確定時は REST エンドポイントを経由して Notion に書き戻される。
 

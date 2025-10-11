@@ -14,6 +14,5 @@
 ### 保存されるローカル情報
 
 - `sessionStorage` に `firepocker-session-<sessionId>` キーでユーザー ID / 表示名 / joinToken を保持
-- ホストが `/intake` で作成した際も同様に保存し、共有 URL を生成
+- ホストが `/` のフォームで作成した際も同様に保存し、共有 URL を生成
 - JOIN ページやセッション画面は上記情報を読み出して WebSocket/HTTP フォールバックに利用
-

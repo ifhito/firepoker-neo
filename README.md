@@ -99,7 +99,7 @@ NOTION_PBI_LASTESTIMATED_PROPERTY=LastEstimatedAt # (任意) 最終見積り日�
 | Epic               | Select / Text  | 任意 |
 | LastEstimatedAt    | Date           | 無ければソートされません |
 
-設定画面 (`/settings`) では、取得済みの環境変数とプロパティ名を確認できます。
+環境変数は `.env.local` で管理し、必要に応じて Notion 連携用の値を設定してください。
 
 ## 今後の拡張ポイント
 
@@ -109,7 +109,7 @@ NOTION_PBI_LASTESTIMATED_PROPERTY=LastEstimatedAt # (任意) 最終見積り日�
 
 ## 使い方 (ローカル)
 
-1. `pnpm dev` を起動し、`http://localhost:3000/intake` にアクセスします。
+1. `pnpm dev` を起動し、`http://localhost:3000/` にアクセスします。
 2. ホストの名前と (必要なら) Notion DB ID を入力して ROOM を作成します。
 3. 表示された参加 URL を共有し、参加者は `/session/{id}/join?token=...` から表示名を登録して入室します。
 4. `/session/{id}` でリアルタイム投票・リセット・確定を行います。

@@ -17,7 +17,7 @@
 - [x] ストーリーポイント更新 & 履歴登録処理 (`POST /api/sessions/{id}/finalize`)
 
 ### 2. フロントエンド (必須機能)
-- [x] フォルダ構成 (feature-based) の scaffold：`app/(authenticated)/dashboard`, `session/[sessionId]`, `settings`
+- [x] フォルダ構成 (feature-based) の scaffold：`app/page`, `app/(authenticated)/session/[sessionId]`
 - [x] UI コンポーネント (PBI パネル、フィボナッチカード、投票状況、類似 PBI サイドパネル)
 - [x] React Query + Zustand によるデータ取得・リアルタイム状態管理
 - [x] WebSocket クライアントラッパーと `useRealtimeSession` フック
