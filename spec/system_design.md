@@ -21,52 +21,29 @@
 ### 3.1 ディレクトリ構成
 ```
 app/
-  layout.tsx / template.tsx
-  (marketing)/...
+  layout.tsx
+  page.tsx                     # Home: ROOM 作成フォーム (app/intake/page.tsx を再エクスポート)
+  intake/
+    page.tsx                   # ホストが ROOM を作成
   (authenticated)/
-    dashboard/
-      page.tsx                 # セッション一覧 & 過去履歴
-      components/
-        SessionCard.tsx
-        SessionStatusBadge.tsx
-      hooks/
-        useFetchSessions.ts
     session/
       [sessionId]/
-        page.tsx
-        loading.tsx
+        page.tsx               # サーバー側フェッチ -> SessionDetailClient 渡し
+        SessionDetailClient.tsx
         components/
-          PbiDetailsPanel.tsx
-          FibonacciCards.tsx
-          VoteSummary.tsx
+          FibonacciPanel.tsx
+          PbiSelectionPanel.tsx
           SimilarPbiPanel.tsx
-        hooks/
-          useRealtimeSession.ts  # WebSocket + Zustand
-          useReveal.ts
-          useFinalizePoint.ts
-        actions/
-          finalizeSession.ts     # Route handler 経由で Notion 更新
-    settings/
-      page.tsx / route.ts
-shared/
-  components/ (Button, Modal, Toast など)
-  hooks/      (useAuthGuard, useToast)
-  lib/
-    notionClient.ts
-    fetcher.ts
-  store/      (Zustand slices, e.g. authSlice, uiSlice)
-  utils/      (type guards, formatters)
-types/
-  session.ts, pbis.ts
+          ...
 ```
-- App Router のセグメント `(authenticated)` には Layout で認証済み UX を提供。`generateMetadata` など SEO 設定もここで統一。
-- Feature 単位で `components`, `hooks`, `actions`, `types` を内包し、横断的な utilities は `shared` 配下へ。
+- `(authenticated)` セグメントではセッション参加者向けの UI を提供。認証は sessionStorage に保存した joinToken を用いる簡易方式。
+- 共有ロジックは `src/hooks`, `src/store`, `src/domain` に集約。特に `useRealtimeSession` が WebSocket + Zustand のハブ。
 
 ### 3.2 データフェッチ戦略
-- React Query + Route Handlers。
-  - `GET /api/pbis` → `useQuery(['pbis', filters])`。
-  - SSR 必須ページ (例: dashboard) は `fetch` with `cache: 'no-store'` + React Query の `dehydrate` を活用。
-- クライアント・サーバー両方で Notion Secret を扱わないため、Route Handler 経由で Notion SDK を呼び出す。
+- React Query + Route Handlers を併用。
+  - ROOM 作成フォームはクライアントオンリー。Notion DB ID が指定された場合に限り、セッション作成時の backfill を行う。
+  - セッション画面は `app/(authenticated)/session/[sessionId]/page.tsx` で `GET /api/sessions/{id}` を SSR 取得後に `SessionDetailClient` へ引き渡し、クライアント側では `useSessionState` (React Query) が 10 秒ごとに HTTP フォールバックを実行。
+- Notion Secret はサーバー側に限定し、Route Handler 経由で Notion SDK を利用する。
 
 ### 3.3 状態管理
 - **Zustand**: WebSocket セッション状態 (`votes`, `participants`, `phase`, `lastNonce`) や UI フラグを保持。
@@ -77,6 +54,7 @@ types/
 - フィボナッチカードはキーボード操作に対応 (`role="radio"`, Arrow navigation)。
 - 類似 PBI パネルは `useQuery` で遅延取得、結果が無い場合はガイドリンクを表示。
 - モバイルは縦スクロールレイアウト、タブレット以上で 2 カラム (PBI 詳細 + 投票/履歴)。
+- セッションヘッダー右側にホスト専用ドロップダウンを配置し、`delegate_facilitator` イベントで権限移譲できる。非ホストにはラベルのみ表示。
 
 ## 4. WebSocket サーバー設計
 - ランタイム: Node.js 20, フレームワーク: Fastify + `@fastify/websocket` または Express + `ws`。  
@@ -174,6 +152,7 @@ types/
 | `reveal_request` | 任意クライアント → サーバー | `{ userId }` | 集計開示 |
 | `reset_votes` | 任意クライアント → サーバー | `{ userId }` | 投票初期化 |
 | `finalize_point` | 任意クライアント → サーバー | `{ userId, finalPoint, memo? }` | 合意ポイント確定要求 |
+| `delegate_facilitator` | 現ホスト → サーバー | `{ userId, delegateTo }` | ファシリテーター権限の委譲 |
 | `finalized` | サーバー → 全クライアント | `{ finalPoint, notionPageId, updatedAt }` | Notion 更新完了通知 |
 | `error` | サーバー → クライアント | `{ code, message, retryable }` | エラー共通形式 |
 

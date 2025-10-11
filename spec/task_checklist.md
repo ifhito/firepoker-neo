@@ -16,8 +16,8 @@
 - [x] 類似 PBI 取得 API (`GET /api/pbis/{id}/similar`)
 - [x] ストーリーポイント更新 & 履歴登録処理 (`POST /api/sessions/{id}/finalize`)
 
-### 2. フロントエンド (必須機能)
-- [x] フォルダ構成 (feature-based) の scaffold：`app/page`, `app/(authenticated)/session/[sessionId]`
+## 2. フロントエンド (Next.js App Router, Feature-based)
+- [x] フォルダ構成 (feature-based) の scaffold：`app/page`, `app/intake`, `app/(authenticated)/session/[sessionId]`
 - [x] UI コンポーネント (PBI パネル、フィボナッチカード、投票状況、類似 PBI サイドパネル)
 - [x] React Query + Zustand によるデータ取得・リアルタイム状態管理
 - [x] WebSocket クライアントラッパーと `useRealtimeSession` フック
@@ -28,24 +28,13 @@
 - [x] ローカル投票 UI (フィボナッチカード・リセットなど)
 - [ ] アクセシビリティ対応 (キーボード操作、ARIA 属性、ダークモード差分確認)
 
-### 3. WebSocket / Realtime (必須分)
-- [x] Next.js API + ws を用いたローカル WebSocket サーバー整備 (`/api/ws`)
-- [x] `state_sync` ブロードキャスト実装
-- [x] 投票系イベントハンドラ実装 (`vote_cast`, `reveal_request`, `reset_votes`, `finalize_point`)
-
-### 4. テスト・品質保証
-- [x] テストランナー (Vitest) 導入とスクリプト整備
-- [x] 単体テスト (Notion/PBI サービス)
-- [x] 単体テスト (セッションサービス)
-- [x] API ルートテスト (GET `/api/sessions/{sessionId}`)
-- [ ] 統合テスト (Docker Compose で Next.js + WS + Redis を起動)
-- [ ] E2E テスト (Playwright) で主要ユーザーフローを検証
-
-## オプションタスク
-
-### WebSocket 拡張
-- [ ] WebSocket 認証強化（joinToken 署名・TTL・多重接続制御など）
-- [ ] `vote_ack` 応答を含む詳細なリアルタイム通知
+## 3. WebSocket サーバー
+- [ ] Fastify/Express + ws を用いたサーバー基盤作成 (`/ws`)
+- [ ] 認証 (`joinToken` 検証) と接続管理
+- [ ] Redis との連携 (接続、WATCH/MULTI 或いは Lua)
+- [ ] イベントハンドラ実装 (`vote_cast`, `reveal_request`, `reset_votes`, `finalize_point`, `delegate_facilitator`)
+- [ ] `state_sync` ブロードキャストおよび `vote_ack` 応答
+- [ ] エラーハンドリング／リトライ／Notion 更新失敗時キュー投入
 - [ ] 負荷試験 (ローカルで複数クライアント) とレイテンシ測定
 
 ### Redis サイドカー

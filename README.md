@@ -4,13 +4,12 @@ Fire Pocker Neo は、Notion のプロダクトバックログアイテム (PBI)
 
 ## プロジェクト構成
 
-- **Next.js App Router**: `app/` ディレクトリ配下にダッシュボード・セッション・設定画面を配置。
+- **Next.js App Router**: `app/` 直下の Home (`page.tsx`) で ROOM 作成フォームを提供し、`app/(authenticated)/session/[sessionId]` が進行用画面。
 - **API Route Handlers**: `app/api/*` で Notion 連携を想定した REST API をモック実装。
 - **React Query Provider**: `src/components/providers/ReactQueryProvider.tsx` でクライアント側データ取得を管理。
 - **ドメインモデル**: `src/domain` に PBI やセッション状態の TypeScript 型を定義。
 - **Notion アダプタ**: `src/server/notion` で環境変数の検証とモッククライアントを管理。
-- **セッションストア**: `src/server/session` は Redis (ioredis) に状態を保持し、テスト時は `ioredis-mock` にフォールバック。
-- **セッション管理 UI**: セッション画面から PBI の追加・削除、アクティブ PBI の切り替えが可能。
+- **セッションストア**: `src/server/session` に Redis 代替のインメモリストアとシードデータを実装。ファシリテーター委譲や投票状態を保持。
 - **モックデータ**: `src/mocks` にサンプル PBI を定義し、API や UI に供給。
 
 ## 主なエンドポイント
@@ -20,12 +19,28 @@ Fire Pocker Neo は、Notion のプロダクトバックログアイテム (PBI)
 | `GET` | `/api/pbis` | PBI 一覧の検索。クエリ `status`, `search` をサポート。
 | `GET` | `/api/pbis/{id}/similar` | 同一ストーリーポイントの類似 PBI を最大 10 件返却。
 | `POST` | `/api/sessions` | セッション作成。モックストアに状態を保存し、`joinToken` を発行。
-| `POST` | `/api/sessions/{id}/finalize` | 見積もり確定。Notion のストーリーポイントを更新し、履歴 DB に追記（設定時）。
+| `POST` | `/api/sessions/{id}/finalize` | 見積もり確定。Notion 書き込みの代わりにモックレスポンスを返却。
+| `POST` | `/api/sessions/{id}/delegate` (予定) | UI からのファシリテーター委譲 API。現状は WebSocket イベントで実装。 |
 
+## 現在の UI フロー
 
-### WebSocket について
+1. `http://localhost:3000/` で ROOM 作成フォームを開き、セッションタイトル・ホスト名・(任意) Notion DB ID を入力して作成。
+2. 生成された URL を参加者へ共有。参加者は `joinToken` 付きリンクから表示名を登録して入室。
+3. セッション画面ではホストのみが PBI の追加・削除・切り替え、見積もり確定、ファシリテーター委譲（右上ドロップダウン）を操作できる。
+4. ホストは WebSocket イベント `delegate_facilitator` を通じて任意の参加者にホスト権限を即時移譲できる。参加者側には自動的に権限変更が反映される。
+5. フィボナッチカードで投票 → `REVEAL` → `FINALIZE` を繰り返し、確定するとモック Notion クライアントが更新処理を行う。
 
-`ws://localhost:3000/api/ws?sessionId=<ID>&token=<joinToken>` に接続すると、セッション状態のリアルタイム同期が利用できます。クライアントからは `state_sync` / `vote_cast` などのイベントを JSON で送信します。実装はローカル開発向けの簡易サーバーなので、本番運用時は Fastify 版などに差し替えてください。
+### WebSocket イベント一覧
+
+| イベント | 方向 | 説明 |
+| --- | --- | --- |
+| `state_sync` | サーバー → 全クライアント | セッションスナップショットの配信。 |
+| `vote_cast` | クライアント → サーバー | 投票値の送信。 |
+| `reveal_request` | クライアント → サーバー | 集計結果を開示。 |
+| `reset_votes` | クライアント → サーバー | 投票内容をリセット。 |
+| `finalize_point` | クライアント → サーバー | Notion 更新を伴う確定処理。 |
+| `delegate_facilitator` | クライアント (現ホスト) → サーバー | ホスト権限の委譲。 |
+| `error` | サーバー → クライアント | エラー通知。 |
 
 ## 開発コマンド
 
@@ -99,12 +114,11 @@ NOTION_PBI_LASTESTIMATED_PROPERTY=LastEstimatedAt # (任意) 最終見積り日�
 | Epic               | Select / Text  | 任意 |
 | LastEstimatedAt    | Date           | 無ければソートされません |
 
-環境変数は `.env.local` で管理し、必要に応じて Notion 連携用の値を設定してください。
-
 ## 今後の拡張ポイント
 
 - Notion API クライアントの本実装とキャッシュ戦略。
 - WebSocket サーバー (Fastify + ws) とのリアルタイム連携。
+- ファシリテーター委譲イベント含むリアルタイム制御の堅牢化 (Redis 永続化やイベンチュアル整合性の検討)。
 - Terraform / GitHub Actions による IaC & CI/CD パイプラインの整備。
 
 ## 使い方 (ローカル)
