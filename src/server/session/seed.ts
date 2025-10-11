@@ -5,8 +5,9 @@ import { generateJoinToken } from '@/lib/ids';
 
 const seedSessionId = 'sess_demo';
 
-export const ensureDemoSession = () => {
-  if (getSessionRecord(seedSessionId)) {
+export const ensureDemoSession = async () => {
+  const existing = await getSessionRecord(seedSessionId);
+  if (existing) {
     return;
   }
 
@@ -44,7 +45,7 @@ export const ensureDemoSession = () => {
     activePbiId: null,
   };
 
-  upsertSession(seedSessionId, {
+  await upsertSession(seedSessionId, {
     state,
     joinToken: generateJoinToken(),
     expiresAt: Date.now() + 1000 * 60 * 60 * 24,

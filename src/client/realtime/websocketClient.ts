@@ -1,70 +1,72 @@
 'use client';
 
+import { io, Socket } from 'socket.io-client';
 import type { RealtimeClient, RealtimeEnvelope, RealtimeHandlers } from './types';
 
-export interface WebSocketClientOptions {
-  endpoint: string;
-  protocol?: string;
-  WebSocketImpl?: typeof WebSocket;
+export interface SocketIOClientOptions {
+  endpoint?: string;
 }
 
 export const createWebSocketClient = ({
-  endpoint,
-  protocol = 'wss',
-  WebSocketImpl = WebSocket,
-}: WebSocketClientOptions): RealtimeClient => {
-  let socket: WebSocket | null = null;
+  endpoint = '/api/socketio',
+}: SocketIOClientOptions = {}): RealtimeClient => {
+  let socket: Socket | null = null;
   let currentHandlers: RealtimeHandlers | null = null;
   let currentSessionId: string | null = null;
   let currentToken: string | null = null;
-
-  const createUrl = (sessionId: string, token: string) => {
-    const url = new URL(endpoint);
-    url.protocol = protocol;
-    url.searchParams.set('sessionId', sessionId);
-    url.searchParams.set('token', token);
-    return url.toString();
-  };
 
   const connect: RealtimeClient['connect'] = (sessionId, joinToken, handlers) => {
     currentHandlers = handlers;
     currentSessionId = sessionId;
     currentToken = joinToken;
 
-    const url = createUrl(sessionId, joinToken);
-    const ws = new WebSocketImpl(url);
-    socket = ws;
+    // Create Socket.IO client
+    socket = io({
+      path: endpoint,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+    });
 
-    ws.addEventListener('open', () => {
+    socket.on('connect', () => {
+      console.log('Socket.IO connected:', socket?.id);
+      
+      // Join the session
+      socket?.emit('join_session', { sessionId, joinToken });
+      
       currentHandlers?.onOpen();
     });
 
-    ws.addEventListener('message', (event) => {
+    socket.on('message', (envelope: RealtimeEnvelope) => {
       try {
-        const data = typeof event.data === 'string' ? event.data : event.data.toString();
-        const envelope = JSON.parse(data) as RealtimeEnvelope;
         currentHandlers?.onMessage(envelope);
       } catch (error) {
         currentHandlers?.onError(error instanceof Error ? error : new Error('Invalid message payload'));
       }
     });
 
-    ws.addEventListener('error', (event) => {
-      const error =
-        event instanceof ErrorEvent
-          ? new Error(event.message || 'WebSocket error')
-          : new Error('WebSocket error');
+    socket.on('error', (data: { message: string }) => {
+      console.error('Socket.IO error:', data);
+      const error = new Error(data.message || 'Socket.IO error');
       currentHandlers?.onError(error);
     });
 
-    ws.addEventListener('close', () => {
+    socket.on('disconnect', (reason) => {
+      console.log('Socket.IO disconnected:', reason);
       currentHandlers?.onClose();
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO connection error:', error);
+      currentHandlers?.onError(error);
     });
   };
 
   const disconnect: RealtimeClient['disconnect'] = () => {
     if (socket) {
-      socket.close();
+      socket.disconnect();
       socket = null;
     }
     currentSessionId = null;
@@ -72,13 +74,13 @@ export const createWebSocketClient = ({
   };
 
   const send: RealtimeClient['send'] = (message) => {
-    if (!socket || socket.readyState !== WebSocketImpl.OPEN) {
-      throw new Error('WebSocket is not connected.');
+    if (!socket || !socket.connected) {
+      throw new Error('Socket.IO is not connected.');
     }
-    socket.send(JSON.stringify(message));
+    socket.emit('message', message);
   };
 
-  const isConnected: RealtimeClient['isConnected'] = () => socket?.readyState === WebSocketImpl.OPEN;
+  const isConnected: RealtimeClient['isConnected'] = () => socket?.connected ?? false;
 
   return {
     connect,

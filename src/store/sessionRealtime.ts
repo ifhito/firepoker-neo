@@ -11,13 +11,22 @@ interface SessionRealtimeStore {
   lastError?: string;
   session: SessionState | null;
   client: RealtimeClient | null;
-  connect: (client: RealtimeClient, sessionId: string, joinToken: string) => void;
+  currentUserId: string | null;
+  localVote: number | null;
+  connect: (client: RealtimeClient, sessionId: string, joinToken: string, userId: string) => void;
+  setCurrentUser: (userId: string) => void;
+  setSessionSnapshot: (session: SessionState) => void;
   disconnect: () => void;
   handleMessage: (message: RealtimeEnvelope) => void;
   sendVote: (point: number) => void;
   requestReveal: () => void;
   resetVotes: () => void;
   finalize: (finalPoint: number, memo?: string | null) => void;
+  setLocalVote: (point: number) => void;
+  clearLocalVote: () => void;
+  addSessionPbi: (pbiId: string) => void;
+  removeSessionPbi: (pbiId: string) => void;
+  setActivePbi: (pbiId: string) => void;
 }
 
 const defaultEnvelope = (sessionId: string) => ({
@@ -30,7 +39,13 @@ export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) =
   connectionStatus: 'idle',
   session: null,
   client: null,
-  connect: (client, sessionId, joinToken) => {
+  currentUserId: null,
+  localVote: null,
+  connect: (client, sessionId, joinToken, userIdOverride) => {
+    const userId = userIdOverride ?? get().currentUserId;
+    if (!userId) {
+      throw new Error('currentUserId is not set');
+    }
     const handlers = {
       onOpen: () => set({ connectionStatus: 'connected', lastError: undefined }),
       onClose: () => set({ connectionStatus: 'disconnected' }),
@@ -47,10 +62,12 @@ export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) =
     set({ connectionStatus: 'connecting', client, lastError: undefined });
     client.connect(sessionId, joinToken, handlers);
   },
+  setCurrentUser: (userId) => set({ currentUserId: userId }),
+  setSessionSnapshot: (session) => set({ session }),
   disconnect: () => {
     const { client } = get();
     client?.disconnect();
-    set({ connectionStatus: 'disconnected', client: null });
+    set({ connectionStatus: 'disconnected', client: null, localVote: null });
   },
   handleMessage: (message) => {
     switch (message.event) {
@@ -82,39 +99,95 @@ export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) =
     }
   },
   sendVote: (point) => {
-    const { client, session } = get();
-    if (!client || !session) return;
+    set({ localVote: point });
+    const { client, session, currentUserId } = get();
+    if (!client || !session || !client.isConnected()) {
+      set({ lastError: 'WebSocket is not connected.' });
+      return;
+    }
+    if (!currentUserId) return;
     client.send({
       ...defaultEnvelope(session.meta.sessionId),
       event: 'vote_cast',
-      payload: { point },
+      payload: { userId: currentUserId, point },
     });
   },
   requestReveal: () => {
-    const { client, session } = get();
+    const { client, session, currentUserId } = get();
     if (!client || !session) return;
+    if (!currentUserId) return;
     client.send({
       ...defaultEnvelope(session.meta.sessionId),
       event: 'reveal_request',
-      payload: {},
+      payload: { userId: currentUserId },
     });
   },
   resetVotes: () => {
-    const { client, session } = get();
+    set({ localVote: null });
+    const { client, session, currentUserId } = get();
     if (!client || !session) return;
+    if (!currentUserId) return;
     client.send({
       ...defaultEnvelope(session.meta.sessionId),
       event: 'reset_votes',
-      payload: {},
+      payload: { userId: currentUserId },
     });
   },
   finalize: (finalPoint, memo) => {
-    const { client, session } = get();
+    const { client, session, currentUserId } = get();
     if (!client || !session) return;
+    if (!currentUserId) return;
     client.send({
       ...defaultEnvelope(session.meta.sessionId),
       event: 'finalize_point',
-      payload: { finalPoint, memo: memo ?? null },
+      payload: { finalPoint, memo: memo ?? null, userId: currentUserId },
+    });
+  },
+  setLocalVote: (point) => set({ localVote: point }),
+  clearLocalVote: () => set({ localVote: null }),
+  addSessionPbi: (pbiId) => {
+    const { client, session, currentUserId } = get();
+    if (!client || !session || !client.isConnected()) {
+      set({ lastError: 'WebSocket is not connected.' });
+      throw new Error('WebSocket is not connected.');
+    }
+    if (!currentUserId) {
+      throw new Error('currentUserId is not set');
+    }
+    client.send({
+      ...defaultEnvelope(session.meta.sessionId),
+      event: 'pbi_add',
+      payload: { userId: currentUserId, pbiId },
+    });
+  },
+  removeSessionPbi: (pbiId) => {
+    const { client, session, currentUserId } = get();
+    if (!client || !session || !client.isConnected()) {
+      set({ lastError: 'WebSocket is not connected.' });
+      throw new Error('WebSocket is not connected.');
+    }
+    if (!currentUserId) {
+      throw new Error('currentUserId is not set');
+    }
+    client.send({
+      ...defaultEnvelope(session.meta.sessionId),
+      event: 'pbi_remove',
+      payload: { userId: currentUserId, pbiId },
+    });
+  },
+  setActivePbi: (pbiId) => {
+    const { client, session, currentUserId } = get();
+    if (!client || !session || !client.isConnected()) {
+      set({ lastError: 'WebSocket is not connected.' });
+      throw new Error('WebSocket is not connected.');
+    }
+    if (!currentUserId) {
+      throw new Error('currentUserId is not set');
+    }
+    client.send({
+      ...defaultEnvelope(session.meta.sessionId),
+      event: 'pbi_set_active',
+      payload: { userId: currentUserId, pbiId },
     });
   },
 }));

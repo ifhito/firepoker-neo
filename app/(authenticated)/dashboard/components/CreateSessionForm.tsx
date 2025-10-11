@@ -1,33 +1,27 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ProductBacklogItem } from '@/domain/pbi';
+import { buildSessionEntryPath, persistSessionIdentity } from '@/lib/sessionStorage';
 
 interface CreateSessionFormProps {
   pbis: ProductBacklogItem[];
 }
 
-type FormStatus =
-  | { state: 'idle' }
-  | { state: 'submitting' }
-  | { state: 'success'; sessionId: string }
-  | { state: 'error'; message: string };
+type FormStatus = { state: 'idle' } | { state: 'submitting' } | { state: 'error'; message: string };
 
 export function CreateSessionForm({ pbis }: CreateSessionFormProps) {
+  const router = useRouter();
   const [title, setTitle] = useState('');
   const [facilitatorName, setFacilitatorName] = useState('');
-  const [selectedPbiIds, setSelectedPbiIds] = useState<string[]>([]);
+  const [selectedPbiId, setSelectedPbiId] = useState<string>('');
   const [status, setStatus] = useState<FormStatus>({ state: 'idle' });
 
   const selectablePbis = useMemo(() => pbis, [pbis]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (selectedPbiIds.length === 0) {
-      setStatus({ state: 'error', message: '少なくとも 1 件の PBI を選択してください。' });
-      return;
-    }
 
     if (!facilitatorName.trim()) {
       setStatus({ state: 'error', message: 'ファシリテーター名を入力してください。' });
@@ -36,6 +30,11 @@ export function CreateSessionForm({ pbis }: CreateSessionFormProps) {
 
     if (!title.trim()) {
       setStatus({ state: 'error', message: 'セッションタイトルを入力してください。' });
+      return;
+    }
+
+    if (!selectedPbiId) {
+      setStatus({ state: 'error', message: '対象 PBI を選択してください。' });
       return;
     }
 
@@ -54,7 +53,7 @@ export function CreateSessionForm({ pbis }: CreateSessionFormProps) {
             id: facilitatorId,
             name: facilitatorName.trim(),
           },
-          pbiIds: selectedPbiIds,
+          pbiIds: [selectedPbiId],
         }),
       });
 
@@ -67,20 +66,26 @@ export function CreateSessionForm({ pbis }: CreateSessionFormProps) {
         throw new Error(message);
       }
 
-      const data = (await response.json()) as { sessionId: string };
-      setStatus({ state: 'success', sessionId: data.sessionId });
+      const data = (await response.json()) as { sessionId: string; joinToken: string };
+
+      persistSessionIdentity(data.sessionId, {
+        userId: facilitatorId,
+        name: facilitatorName.trim(),
+        joinToken: data.joinToken,
+      });
+
       setTitle('');
       setFacilitatorName('');
-      setSelectedPbiIds([]);
+      setSelectedPbiId('');
+      setStatus({ state: 'idle' });
+
+      const path = buildSessionEntryPath(data.sessionId, data.joinToken);
+      router.push(path as any);
+      return;
     } catch (error) {
       const message = error instanceof Error ? error.message : '不明なエラーが発生しました。';
       setStatus({ state: 'error', message });
     }
-  };
-
-  const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = Array.from(event.target.selectedOptions).map((option) => option.value);
-    setSelectedPbiIds(options);
   };
 
   const isSubmitting = status.state === 'submitting';
@@ -114,15 +119,14 @@ export function CreateSessionForm({ pbis }: CreateSessionFormProps) {
       </label>
 
       <label className="form-label">
-        対象 PBI (複数選択可)
+        対象 PBI
         <select
           className="form-input"
-          multiple
-          size={Math.min(selectablePbis.length, 6) || 3}
-          value={selectedPbiIds}
-          onChange={handleSelectChange}
+          value={selectedPbiId}
+          onChange={(event) => setSelectedPbiId(event.target.value)}
           disabled={isSubmitting || selectablePbis.length === 0}
         >
+          <option value="">PBI を選択...</option>
           {selectablePbis.map((item) => (
             <option key={item.id} value={item.id}>
               {item.title} ({item.storyPoint ?? '未設定'}pt)
@@ -135,12 +139,6 @@ export function CreateSessionForm({ pbis }: CreateSessionFormProps) {
         {isSubmitting ? '作成中...' : 'セッションを作成'}
       </button>
 
-      {status.state === 'success' && (
-        <p className="feedback success">
-          セッションを作成しました。ID:
-          <code>{status.sessionId}</code>
-        </p>
-      )}
       {status.state === 'error' && <p className="feedback error">{status.message}</p>}
       {selectablePbis.length === 0 && (
         <p className="feedback warning">登録された PBI がありません。</p>

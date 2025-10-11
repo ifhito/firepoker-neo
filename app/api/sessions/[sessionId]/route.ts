@@ -25,7 +25,7 @@ export async function GET(request: Request, { params }: { params: { sessionId: s
   try {
     const { sessionId } = paramsSchema.parse(params);
     const joinToken = extractJoinToken(request);
-    const state = getSessionStateAuthorized(sessionId, joinToken);
+    const state = await getSessionStateAuthorized(sessionId, joinToken);
     return NextResponse.json(state);
   } catch (error) {
     const { status, body } = toErrorResponse(error);

@@ -194,6 +194,172 @@ body {
   border-radius: 0.5rem;
 }
 
+.feedback.info {
+  background: rgba(73, 106, 255, 0.12);
+  color: #c4d0ff;
+}
+
+.button-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(9, 12, 22, 0.9);
+  color: rgba(233, 237, 245, 0.94);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.button-secondary:hover:not(:disabled),
+.button-secondary:focus-visible {
+  background: rgba(73, 106, 255, 0.18);
+  border-color: rgba(73, 106, 255, 0.45);
+  outline: none;
+}
+
+.button-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.button-secondary.is-selected,
+.button-secondary[data-selected='true'] {
+  background: rgba(73, 106, 255, 0.32);
+  border-color: rgba(121, 146, 255, 0.75);
+  color: #f1f3ff;
+  font-weight: 600;
+  transform: translateY(-2px);
+}
+
+
+.fibonacci-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 0.75rem;
+}
+
+.fibonacci-card {
+  border: none;
+  border-radius: 0.75rem;
+  padding: 1rem 0.25rem;
+  background: linear-gradient(145deg, rgba(45, 60, 102, 0.35), rgba(9, 12, 22, 0.85));
+  color: #f1f3ff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(20, 26, 44, 0.35);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fibonacci-card:hover:not(:disabled),
+.fibonacci-card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 32px rgba(60, 90, 150, 0.45);
+  outline: none;
+}
+
+.fibonacci-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.fibonacci-card.is-selected,
+.fibonacci-card[data-selected='true'] {
+  background: linear-gradient(145deg, rgba(95, 129, 255, 0.75), rgba(73, 106, 255, 0.55));
+  box-shadow: 0 16px 32px rgba(90, 120, 255, 0.55);
+  transform: translateY(-6px);
+}
+
+.button-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pbi-selection {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pbi-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.pbi-option-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pbi-remove-button {
+  border: none;
+  background: rgba(255, 77, 109, 0.18);
+  color: #ff99ad;
+  padding: 0.4rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.pbi-remove-button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.pbi-remove-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pbi-option {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.35rem;
+}
+
+.pbi-option__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgba(233, 237, 245, 0.95);
+}
+
+.pbi-option__meta,
+.pbi-option__assignee,
+.pbi-option__epic,
+.pbi-option__hint,
+.pbi-option__pending,
+.pbi-option__status {
+  font-size: 0.75rem;
+  color: rgba(233, 237, 245, 0.72);
+}
+
+.pbi-option__status {
+  color: #b9c6ff;
+  font-weight: 600;
+}
+
+.pbi-option__pending {
+  color: #ffd699;
+}
+
+.pbi-option__hint {
+  color: rgba(233, 237, 245, 0.55);
+}
+
+.pbi-option[data-pending='true'] {
+  cursor: progress;
+}
+
 .feedback.success {
   background: rgba(60, 184, 120, 0.15);
   color: #9be7c4;
@@ -215,4 +381,16 @@ body {
   border-radius: 0.35rem;
   background: rgba(255, 255, 255, 0.08);
   font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-help {
+  font-size: 0.8rem;
+  color: rgba(233, 237, 245, 0.6);
 }

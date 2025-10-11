@@ -70,9 +70,96 @@ export const mockPbis: ProductBacklogItem[] = [
     epic: 'Reliability',
     lastEstimatedAt: '2024-01-30T09:20:00.000Z',
     notionUrl: 'https://www.notion.so/mock/pbi_007',
-  }
+  },
+  {
+    id: 'pbi_008',
+    title: 'ユーザー認証フロー改善',
+    status: 'Done',
+    storyPoint: 2,
+    assignee: 'Sara Watanabe',
+    epic: 'UX Improvements',
+    lastEstimatedAt: '2024-02-20T10:00:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_008',
+  },
+  {
+    id: 'pbi_009',
+    title: 'エラーメッセージの多言語対応',
+    status: 'Released',
+    storyPoint: 3,
+    assignee: 'Daichi Mori',
+    epic: 'UX Improvements',
+    lastEstimatedAt: '2024-02-18T14:30:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_009',
+  },
+  {
+    id: 'pbi_010',
+    title: 'ログ出力の構造化',
+    status: 'Done',
+    storyPoint: 2,
+    assignee: 'Kaito Suzuki',
+    epic: 'Operational Excellence',
+    lastEstimatedAt: '2024-02-10T11:15:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_010',
+  },
+  {
+    id: 'pbi_011',
+    title: 'APIレスポンスタイム改善',
+    status: 'Released',
+    storyPoint: 8,
+    assignee: 'Ayaka Tanaka',
+    epic: 'Backend',
+    lastEstimatedAt: '2024-01-25T16:00:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_011',
+  },
+  {
+    id: 'pbi_012',
+    title: 'UIコンポーネントの統一',
+    status: 'Done',
+    storyPoint: 5,
+    assignee: 'Sara Watanabe',
+    epic: 'UX Improvements',
+    lastEstimatedAt: '2024-01-20T13:45:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_012',
+  },
+  {
+    id: 'pbi_013',
+    title: 'データベース接続プール最適化',
+    status: 'Released',
+    storyPoint: 3,
+    assignee: 'Daichi Mori',
+    epic: 'Backend',
+    lastEstimatedAt: '2024-01-15T09:30:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_013',
+  },
+  {
+    id: 'pbi_014',
+    title: 'セキュリティヘッダーの追加',
+    status: 'Done',
+    storyPoint: 1,
+    assignee: 'Kaito Suzuki',
+    epic: 'Reliability',
+    lastEstimatedAt: '2024-01-10T15:20:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_014',
+  },
+  {
+    id: 'pbi_015',
+    title: 'モニタリングダッシュボード構築',
+    status: 'Released',
+    storyPoint: 8,
+    assignee: 'Ayaka Tanaka',
+    epic: 'Operational Excellence',
+    lastEstimatedAt: '2023-12-20T10:00:00.000Z',
+    notionUrl: 'https://www.notion.so/mock/pbi_015',
+  },
 ];
 
-if (!(globalThis as any).__firePockerMockPbis) {
+// Notionの環境変数がない場合のみモックデータを初期化
+const hasNotionConfig = process.env.NOTION_TOKEN && process.env.NOTION_PBI_DB_ID;
+
+if (!hasNotionConfig && !(globalThis as any).__firePockerMockPbis) {
   (globalThis as any).__firePockerMockPbis = mockPbis;
+  console.log('[Mock PBIs] Initialized with', mockPbis.length, 'items (Notion config not found)');
+  console.log('[Mock PBIs] Completed items:', mockPbis.filter(p => p.status === 'Done' || p.status === 'Released').length);
+} else if (hasNotionConfig) {
+  console.log('[Mock PBIs] Skipping mock initialization - using real Notion client');
 }
