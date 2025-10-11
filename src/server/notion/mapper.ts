@@ -1,9 +1,9 @@
-import type {
-  PageObjectResponse,
-  PartialPageObjectResponse,
-  QueryDatabaseResponse,
-} from '@notionhq/client/build/src/api-endpoints';
+import type { PageObjectResponse, PartialPageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import type { ProductBacklogItem } from '@/domain/pbi';
+
+type QueryDatabaseResult = {
+  results: Array<PageObjectResponse | PartialPageObjectResponse>;
+};
 
 const isFullPage = (
   page: PageObjectResponse | PartialPageObjectResponse,
@@ -36,7 +36,17 @@ const pickNumber = (page: PageObjectResponse, propertyName: string) => {
 const pickPeople = (page: PageObjectResponse, propertyName: string) => {
   const property = page.properties[propertyName];
   if (property?.type === 'people') {
-    return property.people[0]?.name ?? null;
+    const person = property.people[0];
+    if (!person) {
+      return null;
+    }
+    if ('name' in person && typeof person.name === 'string' && person.name) {
+      return person.name;
+    }
+    if ('person' in person && person.person && 'email' in person.person && typeof person.person.email === 'string') {
+      return person.person.email ?? null;
+    }
+    return null;
   }
   return null;
 };
@@ -100,7 +110,7 @@ export const mapPageToProductBacklogItem = (
 };
 
 export const extractPages = (
-  response: QueryDatabaseResponse,
+  response: QueryDatabaseResult,
   options?: Parameters<typeof mapPageToProductBacklogItem>[1],
 ) => {
   return response.results

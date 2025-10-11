@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import type { Route } from 'next';
 import { useState } from 'react';
 import { nanoid } from 'nanoid';
 
@@ -15,7 +16,8 @@ export default function JoinSessionPage({ params }: JoinPageProps) {
   const searchParams = useSearchParams();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const token = searchParams.get('token');
+  const tokenParam = searchParams?.get('token');
+  const token = tokenParam && tokenParam.length > 0 ? tokenParam : null;
 
   if (!token) {
     return (
@@ -70,7 +72,7 @@ export default function JoinSessionPage({ params }: JoinPageProps) {
       return;
     }
 
-    router.push(`/session/${params.sessionId}?token=${encodeURIComponent(token)}`);
+    router.push(`/session/${params.sessionId}?token=${encodeURIComponent(token)}` as Route);
   };
 
   return (

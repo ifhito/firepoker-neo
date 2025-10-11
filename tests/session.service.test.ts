@@ -7,7 +7,6 @@ import {
   selectActivePbi,
   registerParticipant,
   updateSessionPbis,
-  castVote,
 } from '@/server/session/service';
 import { clearSessions, updateSessionState } from '@/server/session/store';
 import { HttpError } from '@/server/http/error';

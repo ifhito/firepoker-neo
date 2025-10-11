@@ -22,7 +22,7 @@ const propertyOptions = {
   ...(LAST_ESTIMATED_AT_PROPERTY ? { lastEstimatedAtProperty: LAST_ESTIMATED_AT_PROPERTY } : {}),
 };
 
-const ALLOWED_SIMILAR_STATUSES = ['Done', 'Released'];
+const ALLOWED_SIMILAR_STATUSES = ['Backlog', 'Ready', 'InProgress', 'Done', 'Released'];
 const NOTION_API_BASE = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
@@ -171,10 +171,11 @@ class RealNotionClient implements NotionClient {
     const filterClauses: any[] = [];
     if (params.status && STATUS_PROPERTY) {
       const statusType = schema[STATUS_PROPERTY];
-      if (statusType === 'select') {
+      if (statusType === 'select' || statusType === 'status') {
+        const key = statusType === 'status' ? 'status' : 'select';
         filterClauses.push({
           property: STATUS_PROPERTY,
-          select: { equals: params.status },
+          [key]: { equals: params.status },
         });
       } else if (statusType === 'multi_select') {
         filterClauses.push({
@@ -241,7 +242,7 @@ class RealNotionClient implements NotionClient {
 
   async listSimilarPbis(pbiId: string) {
     const source = await this.findPBI(pbiId);
-    if (!source || source.storyPoint == null) {
+    if (!source) {
       return [];
     }
 
@@ -257,18 +258,28 @@ class RealNotionClient implements NotionClient {
 
     const filters: any[] = [];
 
-    if (STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
+    if (source.storyPoint != null && STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
       filters.push({ property: STORY_POINT_PROPERTY, number: { equals: source.storyPoint } });
     }
 
     if (STATUS_PROPERTY && schema[STATUS_PROPERTY]) {
-      filters.push({
-        or: ALLOWED_SIMILAR_STATUSES.map((status) =>
-          schema[STATUS_PROPERTY] === 'multi_select'
-            ? { property: STATUS_PROPERTY, multi_select: { contains: status } }
-            : { property: STATUS_PROPERTY, select: { equals: status } },
-        ),
-      });
+      const statusType = schema[STATUS_PROPERTY];
+      if (statusType === 'multi_select') {
+        filters.push({
+          or: ALLOWED_SIMILAR_STATUSES.map((status) => ({
+            property: STATUS_PROPERTY,
+            multi_select: { contains: status },
+          })),
+        });
+      } else if (statusType === 'select' || statusType === 'status') {
+        const key = statusType === 'status' ? 'status' : 'select';
+        filters.push({
+          or: ALLOWED_SIMILAR_STATUSES.map((status) => ({
+            property: STATUS_PROPERTY,
+            [key]: { equals: status },
+          })),
+        });
+      }
     }
 
     const response = (await this.notionFetch(`/databases/${formatNotionId(this.pbiDatabaseId)}/query`, {

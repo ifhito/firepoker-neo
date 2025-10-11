@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 import { nanoid } from 'nanoid';
 import { buildSessionEntryPath, buildSessionJoinLink, persistSessionIdentity } from '@/lib/sessionStorage';
 
@@ -62,7 +63,7 @@ export default function IntakePage() {
         });
       }
 
-      router.push(entryPath);
+      router.push(entryPath as Route);
       return;
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました。');

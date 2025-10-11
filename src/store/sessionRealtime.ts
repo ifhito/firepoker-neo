@@ -13,7 +13,7 @@ interface SessionRealtimeStore {
   client: RealtimeClient | null;
   currentUserId: string | null;
   localVote: number | null;
-  connect: (client: RealtimeClient, sessionId: string, joinToken: string, userId: string) => void;
+  connect: (client: RealtimeClient, sessionId: string, joinToken: string, userId?: string) => void;
   setCurrentUser: (userId: string) => void;
   setSessionSnapshot: (session: SessionState) => void;
   disconnect: () => void;

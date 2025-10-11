@@ -1,6 +1,14 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 
-const checklist = [
+type ChecklistSection = {
+  title: string;
+  description: string;
+  href: Route;
+  items: string[];
+};
+
+const checklist: ChecklistSection[] = [
   {
     title: 'セッション管理',
     description: 'Notion の PBI を選択して見積もりセッションを開始。参加者は招待コードで参加します。',
@@ -11,7 +19,7 @@ const checklist = [
     title: 'リアルタイム投票',
     description:
       'WebSocket サーバーと連携してフィボナッチカードでの投票・開示・再投票を制御します。',
-    href: '/session/sess_demo',
+    href: '/session/sess_demo' as Route,
     items: ['匿名投票と開示リクエスト', 'reset/reveal/finalize の状態遷移', 'Notion への書き戻しフロー'],
   },
   {

@@ -22,6 +22,7 @@ const FIBONACCI_VALUES = new Set([0, 1, 2, 3, 5, 8, 13, 21, 34]);
 void ensureDemoSession();
 
 export const createSession = async (body: SessionRequestBody): Promise<SessionResponseBody> => {
+  const initialPbiIds = body.pbiIds ?? [];
   const sessionId = generateSessionId();
   const joinToken = generateJoinToken();
   const state: SessionState = {
@@ -30,7 +31,7 @@ export const createSession = async (body: SessionRequestBody): Promise<SessionRe
       title: body.title,
       facilitatorId: body.facilitator.id,
       createdAt: nowIsoString(),
-      pbiIds: body.pbiIds ?? [],
+      pbiIds: initialPbiIds,
     },
     phase: 'READY',
     votes: {},
@@ -41,7 +42,7 @@ export const createSession = async (body: SessionRequestBody): Promise<SessionRe
         joinedAt: nowIsoString(),
       },
     ],
-    activePbiId: body.pbiIds[0] ?? null,
+    activePbiId: initialPbiIds[0] ?? null,
   };
 
   await upsertSession(sessionId, {

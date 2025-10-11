@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProductBacklogItem, SimilarPBIResponse } from '@/domain/pbi';
 import type { SessionState } from '@/domain/session';
 import { useSessionState } from '@/hooks/session/useSessionState';
@@ -43,7 +43,7 @@ export function SessionDetailClient({
     removeSessionPbi,
     setActivePbi,
   } = useRealtimeSession();
-  const { data: catalogData } = usePbiQuery();
+  const { data: catalogData, refetch: refetchPbis } = usePbiQuery();
 
   const STORAGE_KEY = `firepocker-session-${sessionId}`;
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -58,6 +58,16 @@ export function SessionDetailClient({
   const [pbiActionError, setPbiActionError] = useState<string | null>(null);
   const [isAddingPbi, setIsAddingPbi] = useState(false);
   const [isFinalizingAndRemoving, setIsFinalizingAndRemoving] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>('');
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivePbiIdRef = useRef<string | null>(initialState.activePbiId ?? null);
+  const previousPhaseRef = useRef<SessionState['phase']>(initialState.phase);
+  const [finalizedPbiId, setFinalizedPbiId] = useState<string | null>(null);
+  const [completedPbiIds, setCompletedPbiIds] = useState<string[]>([]);
+  const [isFetchingSimilar, setIsFetchingSimilar] = useState(false);
+  const isFacilitator = sessionState.meta.facilitatorId === currentUserId;
+  const canDisplaySimilar = sessionState.phase === 'REVEAL' || sessionState.phase === 'FINALIZED';
 
   const availablePbiCatalog = useMemo(() => catalogData?.items ?? [], [catalogData?.items]);
 
@@ -81,6 +91,23 @@ export function SessionDetailClient({
   useEffect(() => {
     setSessionState(initialState);
   }, [initialState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const baseUrl = window.location.origin;
+    const url = joinToken
+      ? `${baseUrl}/session/${sessionId}/join?token=${joinToken}`
+      : window.location.href;
+    setShareUrl(url);
+  }, [joinToken, sessionId]);
+
+  useEffect(() => () => {
+    if (copyResetRef.current) {
+      clearTimeout(copyResetRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -132,6 +159,35 @@ export function SessionDetailClient({
   }, [data, setSessionSnapshot]);
 
   useEffect(() => {
+    if (sessionState.activePbiId) {
+      lastActivePbiIdRef.current = sessionState.activePbiId;
+    }
+  }, [sessionState.activePbiId]);
+
+  useEffect(() => {
+    if (sessionState.phase === 'FINALIZED') {
+      setFinalizedPbiId(sessionState.activePbiId ?? lastActivePbiIdRef.current ?? null);
+      const completedId = sessionState.activePbiId ?? lastActivePbiIdRef.current ?? null;
+      if (completedId) {
+        setCompletedPbiIds((prev) => (prev.includes(completedId) ? prev : [...prev, completedId]));
+      }
+    } else {
+      setFinalizedPbiId(null);
+    }
+  }, [sessionState.phase, sessionState.activePbiId]);
+
+  useEffect(() => {
+    const prevPhase = previousPhaseRef.current;
+    if (prevPhase !== sessionState.phase && (sessionState.phase === 'REVEAL' || sessionState.phase === 'FINALIZED')) {
+      void refetchPbis();
+    }
+    if (!isFacilitator && prevPhase !== 'FINALIZED' && sessionState.phase === 'FINALIZED') {
+      setIsFinalizingAndRemoving(true);
+    }
+    previousPhaseRef.current = sessionState.phase;
+  }, [sessionState.phase, refetchPbis, isFacilitator, isFinalizingAndRemoving]);
+
+  useEffect(() => {
     setSessionPbis((prev) => {
       const ids = sessionState.meta.pbiIds;
       const map = new Map(prev.map((item) => [item.id, item]));
@@ -166,31 +222,41 @@ export function SessionDetailClient({
   }, [activePbiDetail]);
 
   useEffect(() => {
-    const targetId = sessionState.activePbiId;
-    if (!targetId) {
-      setActivePbiDetail(null);
+    const isRevealPhase = sessionState.phase === 'REVEAL' || sessionState.phase === 'FINALIZED';
+    const referencePbiId = sessionState.activePbiId ?? finalizedPbiId ?? null;
+
+    if (!isRevealPhase) {
       setSimilarPbis([]);
+      setIsFetchingSimilar(false);
       return;
     }
 
-    const match = sessionPbis.find((item) => item.id === targetId) ?? null;
+    if (!referencePbiId) {
+      setActivePbiDetail(null);
+      setSimilarPbis([]);
+      setIsFetchingSimilar(false);
+      return;
+    }
+
+    const match =
+      sessionPbis.find((item) => item.id === referencePbiId) ??
+      (activePbiDetail?.id === referencePbiId ? activePbiDetail : null) ??
+      availablePbiCatalog.find((item) => item.id === referencePbiId) ??
+      null;
     if (match && match.id !== activePbiDetail?.id) {
       setActivePbiDetail(match);
     }
 
     let cancelled = false;
+    setIsFetchingSimilar(true);
     const fetchSimilar = async () => {
       try {
-        // 投票されたポイントを取得（nullを除外）
         const votedPoints = Object.values(sessionState.votes)
           .filter((vote): vote is number => vote !== null && vote !== undefined);
-        
-        // ユニークなポイントのみ取得
         const uniquePoints = Array.from(new Set(votedPoints));
-        
+
         if (uniquePoints.length === 0) {
-          // 投票がない場合は従来通り
-          const response = await fetch(`/api/pbis/${targetId}/similar`);
+          const response = await fetch(`/api/pbis/${referencePbiId}/similar`);
           if (!response.ok) {
             throw new Error('類似 PBI を取得できませんでした。');
           }
@@ -199,22 +265,24 @@ export function SessionDetailClient({
             setSimilarPbis(payload.items ?? []);
           }
         } else {
-          // 投票されたポイントで類似PBIを取得
           const pointsParam = uniquePoints.join(',');
           const url = `/api/pbis/by-points?points=${encodeURIComponent(pointsParam)}`;
-          
           const response = await fetch(url);
           if (!response.ok) {
             throw new Error('類似 PBI を取得できませんでした。');
           }
           const payload = (await response.json()) as SimilarPBIResponse;
-          
+
           if (!cancelled) {
             setSimilarPbis(payload.items ?? []);
           }
         }
       } catch (err) {
         console.warn('failed to fetch similar PBIs', err);
+      } finally {
+        if (!cancelled) {
+          setIsFetchingSimilar(false);
+        }
       }
     };
 
@@ -222,8 +290,9 @@ export function SessionDetailClient({
 
     return () => {
       cancelled = true;
+      setIsFetchingSimilar(false);
     };
-  }, [sessionState.activePbiId, sessionState.votes, sessionPbis, activePbiDetail?.id]);
+  }, [sessionState.activePbiId, sessionState.phase, sessionState.votes, sessionPbis, activePbiDetail?.id, finalizedPbiId, availablePbiCatalog]);
 
   useEffect(() => {
     if (selectingId && sessionState.activePbiId === selectingId) {
@@ -235,6 +304,10 @@ export function SessionDetailClient({
   const handleFinalizingStart = useCallback(() => {
     setIsFinalizingAndRemoving(true);
   }, []);
+
+  const handleFinalizeComplete = useCallback(() => {
+    void refetchPbis();
+  }, [refetchPbis]);
 
   // FINALIZED後に自動的にPBIを削除（再選択を促す）
   useEffect(() => {
@@ -270,6 +343,35 @@ export function SessionDetailClient({
       return () => clearTimeout(timer);
     }
   }, [sessionState.activePbiId, isFinalizingAndRemoving]);
+
+  const handleCopyUrl = useCallback(async () => {
+    if (!shareUrl) {
+      return;
+    }
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      setCopyStatus('error');
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopyStatus('idle'), 3000);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyStatus('copied');
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch (err) {
+      console.warn('failed to copy session url', err);
+      setCopyStatus('error');
+      if (copyResetRef.current) {
+        clearTimeout(copyResetRef.current);
+      }
+      copyResetRef.current = setTimeout(() => setCopyStatus('idle'), 3000);
+    }
+  }, [shareUrl]);
 
 
   const handleSelectPbi = useCallback(
@@ -331,204 +433,237 @@ export function SessionDetailClient({
     [removeSessionPbi],
   );
 
+  const facilitator = useMemo(
+    () =>
+      sessionState.participants.find(
+        (participant) => participant.userId === sessionState.meta.facilitatorId,
+      ) ?? null,
+    [sessionState.participants, sessionState.meta.facilitatorId],
+  );
+
+  const votingProgress = useMemo(() => {
+    const total = sessionState.participants.length;
+    const voted = Object.values(sessionState.votes).filter(
+      (vote): vote is number => vote !== null && vote !== undefined,
+    ).length;
+    return { total, voted };
+  }, [sessionState.participants, sessionState.votes]);
+
+  const activeIndex = useMemo(() => {
+    if (!sessionState.activePbiId) {
+      return -1;
+    }
+    return sessionState.meta.pbiIds.findIndex((id) => id === sessionState.activePbiId);
+  }, [sessionState.activePbiId, sessionState.meta.pbiIds]);
+
+  const connectionLabel = useMemo(() => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'オンライン';
+      case 'connecting':
+        return '再接続中';
+      default:
+        return '接続なし';
+    }
+  }, [connectionStatus]);
+
+  const copyButtonLabel = useMemo(() => {
+    if (!joinToken) {
+      return 'URLをコピー';
+    }
+    if (copyStatus === 'copied') {
+      return 'コピー済み';
+    }
+    if (copyStatus === 'error') {
+      return 'コピー失敗';
+    }
+    return 'URLをコピー';
+  }, [copyStatus, joinToken]);
+
+  const combinedPbiError = selectionError ?? pbiActionError;
+
   return (
-    <div className="card-grid">
-      {/* ローディングオーバーレイ */}
+    <div className="session-page">
       {isFinalizingAndRemoving && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '2rem',
-            borderRadius: '8px',
-            textAlign: 'center',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              border: '4px solid #f3f3f3',
-              borderTop: '4px solid #2196f3',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 1rem',
-            }} />
-            <p style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#333' }}>
-              ポイントを保存中...
-            </p>
-            <p style={{ margin: '0.5rem 0 0', fontSize: '14px', color: '#666' }}>
-              次のPBIを選択できるようになります
-            </p>
+        <div className="session-overlay" role="status" aria-live="assertive">
+          <div className="session-overlay__panel">
+            <div className="session-overlay__spinner" />
+            <p className="session-overlay__title">ポイントを保存中...</p>
+            <p className="session-overlay__subtitle">次の PBI を選択できるようになります</p>
           </div>
         </div>
       )}
-      
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-
-      <section className="card">
-        <div className="badge">セッション</div>
-        <h2>{sessionState.meta.title}</h2>
-        {joinToken ? (
-          <p className="badge">Join Token: {joinToken}</p>
-        ) : (
-          <p className="feedback warning">JoinToken が無いためリアルタイム機能を利用できません。</p>
-        )}
-        {displayName && <p>あなたの表示名: {displayName}</p>}
-        {error && <p className="feedback error">{(error as Error).message}</p>}
-        {isFetching && <p>同期中...</p>}
-        <p>進行状況: {sessionState.phase}</p>
-        <p>ファシリテーター: {sessionState.participants[0]?.displayName}</p>
-        <p>
-          対象 PBI 数: <strong>{sessionState.meta.pbiIds.length}</strong>
-        </p>
-        <p>
-          アクティブ PBI:{' '}
-          {activePbiDetail ? (
-            <a className="badge" href={activePbiDetail.notionUrl ?? '#'} target="_blank" rel="noreferrer">
-              {activePbiDetail.title}
-            </a>
-          ) : (
-            '未選択'
-          )}
-        </p>
-        <div>
-          <h3>参加者</h3>
-          <ul>
-            {sessionState.participants.map((participant) => (
-              <li key={participant.userId}>
-                {participant.displayName} — 参加: {new Date(participant.joinedAt).toLocaleString('ja-JP')}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <PbiSelectionPanel
-        pbis={sessionPbis}
-        availablePbis={availablePbiCatalog}
-        activePbiId={sessionState.activePbiId}
-        onSelect={handleSelectPbi}
-        selectingId={selectingId}
-        disabled={connectionStatus !== 'connected' || !currentUserId}
-        joinToken={joinToken}
-        errorMessage={selectionError}
-        onAdd={joinToken ? handleAddSessionPbi : undefined}
-        onRemove={joinToken ? handleRemoveSessionPbi : undefined}
-        managingId={managingPbiId}
-        isAdding={isAddingPbi}
-      />
-
-      {pbiActionError && <p className="feedback error">{pbiActionError}</p>}
-
-      <FibonacciPanel session={sessionState} onFinalizingStart={handleFinalizingStart} />
-
-      <section className="card">
-        <div className="badge">類似 PBI</div>
-        <h2>投票されたポイントの過去事例</h2>
-        {similarPbis.length === 0 ? (
-          <p>投票されたポイントの完了済み PBI はまだありません。</p>
-        ) : (() => {
-          // ポイント別にグループ化
-          const groupedByPoint = similarPbis.reduce((acc, item) => {
-            const point = item.storyPoint ?? 0;
-            if (!acc[point]) {
-              acc[point] = [];
-            }
-            acc[point].push(item);
-            return acc;
-          }, {} as Record<number, typeof similarPbis>);
-
-          // ポイントの順にソート
-          const sortedPoints = Object.keys(groupedByPoint)
-            .map(Number)
-            .sort((a, b) => a - b);
-
-          return (
-            <div>
-              {sortedPoints.map((point) => (
-                <div key={point} style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ 
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#333',
-                    marginBottom: '0.5rem',
-                    padding: '0.5rem',
-                    backgroundColor: '#e3f2fd',
-                    borderRadius: '4px',
-                    border: '1px solid #2196f3',
-                  }}>
-                    {point} pt の過去事例 ({groupedByPoint[point].length}件)
-                  </h3>
-                  <ul style={{ 
-                    listStyle: 'none',
-                    padding: 0,
-                    margin: 0,
-                  }}>
-                    {groupedByPoint[point].map((item) => (
-                      <li key={item.id} style={{
-                        padding: '0.5rem',
-                        marginBottom: '0.25rem',
-                        backgroundColor: '#f5f5f5',
-                        borderRadius: '4px',
-                        border: '1px solid #ddd',
-                      }}>
-                        <a 
-                          href={item.notionUrl ?? '#'} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          style={{
-                            textDecoration: 'none',
-                            color: '#1976d2',
-                            fontWeight: '500',
-                          }}
-                        >
-                          {item.title}
-                        </a>
-                        {item.status && (
-                          <span style={{
-                            marginLeft: '0.5rem',
-                            fontSize: '12px',
-                            color: '#666',
-                            padding: '0.125rem 0.375rem',
-                            backgroundColor: '#e0e0e0',
-                            borderRadius: '3px',
-                          }}>
-                            {item.status}
-                          </span>
-                        )}
-                        {item.lastEstimatedAt && (
-                          <span style={{
-                            marginLeft: '0.5rem',
-                            fontSize: '12px',
-                            color: '#999',
-                          }}>
-                            ({new Date(item.lastEstimatedAt).toLocaleDateString('ja-JP')})
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+      <div className="session-page__inner">
+        <header className="session-header">
+          <div className="session-header__left">
+            <div className="session-header__title">
+              <span className="session-header__brand">Fire Pocker</span>
+              <span className="session-header__room">ルーム ID: {sessionId}</span>
             </div>
-          );
-        })()}
-      </section>
+            <div className="session-header__meta">
+              <span className="session-chip session-chip--neutral">
+                {activeIndex >= 0
+                  ? `PBI ${activeIndex + 1} / ${sessionState.meta.pbiIds.length}`
+                  : `PBI 数 ${sessionState.meta.pbiIds.length}`}
+              </span>
+              <span className="session-chip session-chip--ghost">
+                {votingProgress.voted} / {votingProgress.total} 投票完了
+              </span>
+              <span
+                className={`session-chip ${
+                  connectionStatus === 'connected'
+                    ? 'session-chip--online'
+                    : 'session-chip--offline'
+                }`}
+              >
+                {connectionLabel}
+              </span>
+            </div>
+          </div>
+          <div className="session-header__right">
+            {facilitator && (
+              <div className="session-header__host">
+                <span className="session-chip session-chip--host">ホスト</span>
+                <span className="session-header__host-name">{facilitator.displayName}</span>
+              </div>
+            )}
+            {shareUrl && (
+              <button
+                type="button"
+                className="session-button session-button--ghost"
+                onClick={handleCopyUrl}
+                disabled={!joinToken}
+              >
+                {copyButtonLabel}
+              </button>
+            )}
+          </div>
+        </header>
+
+        <div className="session-status-messages">
+          {!joinToken && (
+            <p className="session-inline-alert session-inline-alert--warning">
+              JoinToken が無いためリアルタイム機能を利用できません。
+            </p>
+          )}
+          {isFetching && (
+            <p className="session-inline-alert session-inline-alert--info">セッションを同期しています...</p>
+          )}
+          {error && (
+            <p className="session-inline-alert session-inline-alert--error">
+              {(error as Error).message}
+            </p>
+          )}
+          {copyStatus === 'error' && (
+            <p className="session-inline-alert session-inline-alert--error">
+              クリップボードにコピーできませんでした。ブラウザ設定をご確認ください。
+            </p>
+          )}
+        </div>
+
+        <main className="session-page__layout">
+          <div className="session-page__left">
+            <PbiSelectionPanel
+              pbis={sessionPbis}
+              availablePbis={availablePbiCatalog}
+              activePbiId={sessionState.activePbiId}
+              onSelect={handleSelectPbi}
+              selectingId={selectingId}
+              disabled={connectionStatus !== 'connected' || !currentUserId}
+              joinToken={joinToken}
+              errorMessage={combinedPbiError}
+              onAdd={joinToken ? handleAddSessionPbi : undefined}
+              onRemove={joinToken ? handleRemoveSessionPbi : undefined}
+              managingId={managingPbiId}
+              isAdding={isAddingPbi}
+              excludedPbiIds={completedPbiIds}
+              canManage={isFacilitator}
+            />
+
+            <FibonacciPanel
+              session={sessionState}
+              onFinalizingStart={handleFinalizingStart}
+              onFinalizeComplete={handleFinalizeComplete}
+              canFinalize={isFacilitator}
+            />
+          </div>
+
+          <aside className="session-page__right">
+            <section className="session-card session-card--similar">
+              <header className="session-card__header">
+                <div>
+                  <h2 className="session-card__title">過去の同一ストーリーポイント PBI</h2>
+                </div>
+              </header>
+        {!canDisplaySimilar ? (
+          <p className="session-card__empty">投票後に類似 PBI を表示します。</p>
+        ) : isFetchingSimilar ? (
+          <p className="session-card__empty">類似 PBI を取得しています...</p>
+        ) : similarPbis.length === 0 ? (
+          <p className="session-card__empty">投票ポイントの過去事例はまだありません。</p>
+        ) : (() => {
+                const groupedByPoint = similarPbis.reduce((acc, item) => {
+                  const point = item.storyPoint ?? 0;
+                  if (!acc[point]) {
+                    acc[point] = [];
+                  }
+                  acc[point].push(item);
+                  return acc;
+                }, {} as Record<number, typeof similarPbis>);
+                const sortedPoints = Object.keys(groupedByPoint)
+                  .map(Number)
+                  .sort((a, b) => a - b);
+                return (
+                  <div className="similar-list">
+                    {sortedPoints.map((point) => (
+                      <div key={point} className="similar-group">
+                        <div className="similar-group__header">
+                          <span className="similar-group__point">{point} pt</span>
+                          <span className="similar-group__count">
+                            {groupedByPoint[point].length} 件
+                          </span>
+                        </div>
+                        <ul className="similar-items">
+                          {groupedByPoint[point].map((item) => (
+                            <li key={item.id} className="similar-item">
+                              <div className="similar-item__body">
+                                <span className="similar-item__title">{item.title}</span>
+                                <div className="similar-item__meta">
+                                  {item.status && (
+                                    <span className="similar-item__chip">{item.status}</span>
+                                  )}
+                                  {item.lastEstimatedAt && (
+                                    <span className="similar-item__time">
+                                      {new Date(item.lastEstimatedAt).toLocaleDateString('ja-JP')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="similar-item__actions">
+                                {item.notionUrl && (
+                                  <a
+                                    className="similar-item__notion-link"
+                                    href={item.notionUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label={`${item.title} を Notion で開く`}
+                                  >
+                                    <img aria-hidden="true" className="notion-icon" src="/icons/notion-logo.svg" alt="" />
+                                  </a>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </section>
+          </aside>
+        </main>
+      </div>
     </div>
   );
 }

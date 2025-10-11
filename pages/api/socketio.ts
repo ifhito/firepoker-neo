@@ -98,9 +98,23 @@ const handleMessage = async (sessionId: string, joinToken: string, message: Real
       return;
     }
     case 'finalize_point': {
-      const payload = (message.payload ?? {}) as { finalPoint?: number; memo?: string | null };
+      const payload = (message.payload ?? {}) as {
+        finalPoint?: number;
+        memo?: string | null;
+        userId?: string;
+      };
       if (typeof payload.finalPoint !== 'number') {
         throw new HttpError(400, 'ValidationError', 'finalPoint is required');
+      }
+      if (!payload.userId) {
+        throw new HttpError(400, 'ValidationError', 'userId is required');
+      }
+      const record = await getSessionRecord(sessionId);
+      if (!record) {
+        throw new HttpError(404, 'NotFound', 'Session not found');
+      }
+      if (record.state.meta.facilitatorId !== payload.userId) {
+        throw new HttpError(403, 'Unauthorized', 'Only facilitator can finalize');
       }
       await finalizeSession(sessionId, {
         finalPoint: payload.finalPoint,

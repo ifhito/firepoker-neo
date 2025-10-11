@@ -2,6 +2,7 @@ import { ZodError } from 'zod';
 
 export type ErrorCode =
   | 'ValidationError'
+  | 'Unauthorized'
   | 'NotFound'
   | 'Conflict'
   | 'NotionError'
