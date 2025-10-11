@@ -9,6 +9,7 @@ import {
   updateSessionPbis,
   selectActivePbi,
   delegateFacilitator,
+  registerParticipant,
 } from '@/server/session/service';
 import type { RealtimeEnvelope } from '@/client/realtime/types';
 import { HttpError } from '@/server/http/error';
@@ -30,6 +31,8 @@ interface SocketWithIO extends NetSocket {
 interface NextApiResponseWithSocket extends NextApiResponse {
   socket: SocketWithIO;
 }
+
+const sessionUserConnections = new Map<string, Map<string, number>>();
 
 const handleMessage = async (sessionId: string, joinToken: string, message: RealtimeEnvelope) => {
   switch (message.event) {
@@ -164,12 +167,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
 
-    socket.on('join_session', async (data: { sessionId: string; joinToken: string }) => {
-      try {
-        const { sessionId, joinToken } = data;
+    socket.on(
+      'join_session',
+      async (data: { sessionId: string; joinToken: string; userId?: string; displayName?: string }) => {
+        try {
+        const { sessionId, joinToken, userId, displayName } = data;
 
         if (!sessionId || !joinToken) {
           socket.emit('error', { message: 'sessionId and token required' });
+          socket.disconnect();
+          return;
+        }
+
+        if (!userId) {
+          socket.emit('error', { message: 'userId required' });
           socket.disconnect();
           return;
         }
@@ -190,12 +201,34 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
           return;
         }
 
+        const normalizedName =
+          (typeof displayName === 'string' && displayName.trim().length > 0
+            ? displayName.trim()
+            : undefined) ?? userId;
+
+        const updatedState = await registerParticipant(sessionId, joinToken, {
+          userId,
+          displayName: normalizedName,
+        });
+
         // Join the session room
         socket.join(sessionId);
-        console.info('Client joined session:', { socketId: socket.id, sessionId });
+        console.info('Client joined session:', { socketId: socket.id, sessionId, userId });
+
+        socket.data.sessionId = sessionId;
+        socket.data.joinToken = joinToken;
+        socket.data.userId = userId;
+        socket.data.displayName = normalizedName;
+
+        let userConnections = sessionUserConnections.get(sessionId);
+        if (!userConnections) {
+          userConnections = new Map();
+          sessionUserConnections.set(sessionId, userConnections);
+        }
+        userConnections.set(userId, (userConnections.get(userId) ?? 0) + 1);
 
         // Send initial state
-        const state = await getSessionState(sessionId);
+        const state = updatedState ?? (await getSessionState(sessionId));
         const envelope: RealtimeEnvelope = {
           sessionId,
           event: 'state_sync',
@@ -203,6 +236,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
           version: Date.now(),
         };
         socket.emit('message', envelope);
+
+        if (updatedState) {
+          socket.to(sessionId).emit('message', {
+            sessionId,
+            event: 'state_sync',
+            payload: updatedState,
+            version: Date.now(),
+          });
+        }
 
         // Handle incoming messages
         socket.on('message', async (message: RealtimeEnvelope) => {
@@ -232,12 +274,66 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
           }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
           console.info('Client disconnected:', socket.id);
+
+          const disconnectedSessionId = socket.data.sessionId as string | undefined;
+          const disconnectedUserId = socket.data.userId as string | undefined;
+
+          if (!disconnectedSessionId || !disconnectedUserId) {
+            return;
+          }
+
+          try {
+            const userConnections = sessionUserConnections.get(disconnectedSessionId);
+            if (userConnections) {
+              const nextCount = (userConnections.get(disconnectedUserId) ?? 0) - 1;
+              if (nextCount > 0) {
+                userConnections.set(disconnectedUserId, nextCount);
+                return;
+              }
+              userConnections.delete(disconnectedUserId);
+              if (userConnections.size === 0) {
+                sessionUserConnections.delete(disconnectedSessionId);
+              }
+            }
+
+            const updated = await updateSessionState(disconnectedSessionId, (state) => {
+              const beforeCount = state.participants.length;
+              state.participants = state.participants.filter(
+                (participant) => participant.userId !== disconnectedUserId,
+              );
+              if (beforeCount !== state.participants.length) {
+                if (state.meta.facilitatorId === disconnectedUserId) {
+                  const fallback = state.participants[0]?.userId;
+                  if (fallback) {
+                    state.meta.facilitatorId = fallback;
+                  }
+                }
+              }
+              delete state.votes[disconnectedUserId];
+            });
+
+            if (updated) {
+              const updateEnvelope: RealtimeEnvelope = {
+                sessionId: disconnectedSessionId,
+                event: 'state_sync',
+                payload: updated.state,
+                version: Date.now(),
+              };
+              io.to(disconnectedSessionId).emit('message', updateEnvelope);
+            }
+          } catch (disconnectError) {
+            console.error('Failed to process disconnect cleanup:', disconnectError);
+          }
         });
       } catch (error) {
         console.error('Connection setup error:', error);
-        socket.emit('error', { message: 'Internal server error' });
+        const message =
+          error instanceof HttpError && typeof error.message === 'string'
+            ? error.message
+            : 'Internal server error';
+        socket.emit('error', { message });
         socket.disconnect();
       }
     });

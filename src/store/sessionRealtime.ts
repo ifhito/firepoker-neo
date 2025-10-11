@@ -12,9 +12,17 @@ interface SessionRealtimeStore {
   session: SessionState | null;
   client: RealtimeClient | null;
   currentUserId: string | null;
+  currentDisplayName: string | null;
   localVote: number | null;
-  connect: (client: RealtimeClient, sessionId: string, joinToken: string, userId?: string) => void;
+  connect: (
+    client: RealtimeClient,
+    sessionId: string,
+    joinToken: string,
+    userId?: string,
+    displayName?: string,
+  ) => void;
   setCurrentUser: (userId: string) => void;
+  setCurrentDisplayName: (name: string) => void;
   setSessionSnapshot: (session: SessionState) => void;
   disconnect: () => void;
   handleMessage: (message: RealtimeEnvelope) => void;
@@ -41,12 +49,15 @@ export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) =
   session: null,
   client: null,
   currentUserId: null,
+  currentDisplayName: null,
   localVote: null,
-  connect: (client, sessionId, joinToken, userIdOverride) => {
+  connect: (client, sessionId, joinToken, userIdOverride, displayNameOverride) => {
     const userId = userIdOverride ?? get().currentUserId;
     if (!userId) {
       throw new Error('currentUserId is not set');
     }
+    const displayName =
+      displayNameOverride ?? get().currentDisplayName ?? `user_${userId.slice(-4)}`;
     const handlers = {
       onOpen: () => set({ connectionStatus: 'connected', lastError: undefined }),
       onClose: () => set({ connectionStatus: 'disconnected' }),
@@ -61,9 +72,10 @@ export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) =
     };
 
     set({ connectionStatus: 'connecting', client, lastError: undefined });
-    client.connect(sessionId, joinToken, handlers);
+    client.connect(sessionId, joinToken, handlers, userId, displayName);
   },
   setCurrentUser: (userId) => set({ currentUserId: userId }),
+  setCurrentDisplayName: (name) => set({ currentDisplayName: name }),
   setSessionSnapshot: (session) => set({ session }),
   disconnect: () => {
     const { client } = get();

@@ -160,19 +160,43 @@ export const registerParticipant = async (
   }
 
   if (record.joinToken !== joinToken) {
+    console.warn('registerParticipant: join token mismatch', {
+      sessionId,
+      provided: joinToken,
+      expected: record.joinToken,
+    });
     throw new HttpError(401, 'Unauthorized', 'Invalid join token.');
   }
 
   const updated = await updateSessionState(sessionId, (state) => {
-    if (!state.participants.some((p) => p.userId === participant.userId)) {
+    const existing = state.participants.find((p) => p.userId === participant.userId);
+    if (!existing) {
       state.participants.push({
         userId: participant.userId,
         displayName: participant.displayName,
         joinedAt: nowIsoString(),
       });
+    } else {
+      existing.displayName = participant.displayName;
     }
     if (!(participant.userId in state.votes)) {
       state.votes[participant.userId] = null;
+    }
+    const hasFacilitator = state.participants.some((p) => p.userId === state.meta.facilitatorId);
+    if (!hasFacilitator) {
+      state.meta.facilitatorId = participant.userId;
+    }
+
+    const participantCount = state.participants.length;
+    if (
+      participantCount === 1 &&
+      state.activePbiId &&
+      state.phase !== 'VOTING'
+    ) {
+      Object.keys(state.votes).forEach((userId) => {
+        state.votes[userId] = null;
+      });
+      state.phase = 'VOTING';
     }
   });
 

@@ -14,11 +14,15 @@ export const createWebSocketClient = ({
   let currentHandlers: RealtimeHandlers | null = null;
   let currentSessionId: string | null = null;
   let currentToken: string | null = null;
+  let currentUserId: string | null = null;
+  let currentDisplayName: string | null = null;
 
-  const connect: RealtimeClient['connect'] = (sessionId, joinToken, handlers) => {
+  const connect: RealtimeClient['connect'] = (sessionId, joinToken, handlers, userId, displayName) => {
     currentHandlers = handlers;
     currentSessionId = sessionId;
     currentToken = joinToken;
+    currentUserId = userId;
+    currentDisplayName = displayName ?? null;
 
     // Create Socket.IO client
     socket = io({
@@ -34,7 +38,12 @@ export const createWebSocketClient = ({
       console.log('Socket.IO connected:', socket?.id);
       
       // Join the session
-      socket?.emit('join_session', { sessionId, joinToken });
+      socket?.emit('join_session', {
+        sessionId,
+        joinToken,
+        userId: currentUserId,
+        displayName: currentDisplayName ?? undefined,
+      });
       
       currentHandlers?.onOpen();
     });
@@ -71,6 +80,8 @@ export const createWebSocketClient = ({
     }
     currentSessionId = null;
     currentToken = null;
+    currentUserId = null;
+    currentDisplayName = null;
   };
 
   const send: RealtimeClient['send'] = (message) => {

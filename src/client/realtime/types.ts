@@ -28,7 +28,13 @@ export interface RealtimeHandlers {
 }
 
 export interface RealtimeClient {
-  connect: (sessionId: string, joinToken: string, handlers: RealtimeHandlers) => void;
+  connect: (
+    sessionId: string,
+    joinToken: string,
+    handlers: RealtimeHandlers,
+    userId: string,
+    displayName?: string,
+  ) => void;
   disconnect: () => void;
   send: (message: RealtimeEnvelope) => void;
   isConnected: () => boolean;

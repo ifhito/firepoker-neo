@@ -27,18 +27,17 @@ export function SessionDetailClient({
   activePbi,
   similar,
 }: SessionDetailClientProps) {
-  const { data, error, isFetching } = useSessionState(sessionId, joinToken, {
-    enabled: Boolean(joinToken),
-    refetchInterval: joinToken ? 10000 : false,
-  });
+  const { data, error, isFetching, refetch } = useSessionState(sessionId, joinToken);
 
   const {
     connectionStatus,
     session: realtimeSession,
     setCurrentUser,
+    setCurrentDisplayName,
     connect,
     disconnect,
     currentUserId,
+    currentDisplayName,
     setSessionSnapshot,
     addSessionPbi,
     removeSessionPbi,
@@ -87,6 +86,7 @@ export function SessionDetailClient({
       }
       if (parsed.name) {
         setDisplayName(parsed.name);
+        setCurrentDisplayName(parsed.name);
       }
     } catch (err) {
       console.warn('failed to bootstrap session user', err);
@@ -133,7 +133,12 @@ export function SessionDetailClient({
       const client = createWebSocketClient({
         endpoint: '/api/socketio',
       });
-      connect(client, sessionId, joinToken, currentUserId);
+      const effectiveName = displayName?.trim().length
+        ? displayName.trim()
+        : currentDisplayName?.trim().length
+        ? currentDisplayName.trim()
+        : `user_${currentUserId.slice(-4)}`;
+      connect(client, sessionId, joinToken, currentUserId, effectiveName);
     };
 
     setup();
@@ -142,7 +147,13 @@ export function SessionDetailClient({
       cancelled = true;
       disconnect();
     };
-  }, [connect, disconnect, joinToken, currentUserId, sessionId]);
+  }, [connect, disconnect, joinToken, currentUserId, sessionId, displayName, currentDisplayName]);
+
+  useEffect(() => {
+    if (displayName) {
+      setCurrentDisplayName(displayName);
+    }
+  }, [displayName, setCurrentDisplayName]);
 
   useEffect(() => {
     setSessionPbis(pbis);
@@ -162,6 +173,22 @@ export function SessionDetailClient({
       setSessionSnapshot(data);
     }
   }, [data, setSessionSnapshot]);
+
+  useEffect(() => {
+    if (!joinToken) {
+      return;
+    }
+
+    if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      void refetch();
+    }, 10000);
+
+    return () => clearInterval(timer);
+  }, [connectionStatus, joinToken, refetch]);
 
   useEffect(() => {
     if (realtimeSession) {
@@ -325,7 +352,12 @@ export function SessionDetailClient({
 
   // FINALIZED後に自動的にPBIを削除（再選択を促す）
   useEffect(() => {
-    if (sessionState.phase !== 'FINALIZED' || !sessionState.activePbiId || !joinToken) {
+    if (
+      sessionState.phase !== 'FINALIZED' ||
+      !sessionState.activePbiId ||
+      !joinToken ||
+      !isFacilitator
+    ) {
       return;
     }
 
@@ -345,7 +377,7 @@ export function SessionDetailClient({
     return () => {
       clearTimeout(timer);
     };
-  }, [sessionState.phase, sessionState.activePbiId, joinToken, removeSessionPbi]);
+  }, [sessionState.phase, sessionState.activePbiId, joinToken, removeSessionPbi, isFacilitator]);
 
   // activePbiIdがnullになったらローディングを解除
   useEffect(() => {

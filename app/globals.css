@@ -412,7 +412,7 @@ body {
 .session-page {
   min-height: 100vh;
   padding: 2.5rem 1.5rem 3rem;
-  background: linear-gradient(180deg, #eef1ff 0%, #f7f9ff 100%);
+  background: transparent;
   color: #1b1f3b;
 }
 

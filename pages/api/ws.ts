@@ -7,6 +7,7 @@ import {
   updateSessionPbis,
   selectActivePbi,
   delegateFacilitator,
+  registerParticipant,
 } from '@/server/session/service';
 import type { RealtimeEnvelope } from '@/client/realtime/types';
 import { HttpError } from '@/server/http/error';
@@ -19,7 +20,7 @@ export const config = {
   },
 };
 
-type SessionConnections = Map<string, Set<WebSocket>>;
+type SessionConnections = Map<string, Map<WebSocket, { userId: string }>>;
 
 type ExtendedServer = {
   wss?: WebSocketServer;
@@ -63,10 +64,17 @@ const getOrCreateWebSocketServer = (res: NextApiResponse): ExtendedServer => {
           const url = new URL(request.url ?? '', 'http://localhost');
           const sessionId = url.searchParams.get('sessionId');
           const joinToken = url.searchParams.get('token');
+          const userId = url.searchParams.get('userId');
 
           if (!sessionId || !joinToken) {
             console.warn('ws connection rejected: missing parameters');
             socket.close(4001, 'sessionId and token required');
+            return;
+          }
+
+          if (!userId) {
+            console.warn('ws connection rejected: missing userId', { sessionId });
+            socket.close(4002, 'userId required');
             return;
           }
 
@@ -84,14 +92,24 @@ const getOrCreateWebSocketServer = (res: NextApiResponse): ExtendedServer => {
             return;
           }
 
-          console.info('ws connection accepted', { sessionId });
+          const displayNameParam = url.searchParams.get('displayName');
+          const normalizedName = displayNameParam && displayNameParam.trim().length > 0
+            ? displayNameParam.trim()
+            : userId;
+
+          await registerParticipant(sessionId, joinToken, {
+            userId,
+            displayName: normalizedName,
+          });
+
+          console.info('ws connection accepted', { sessionId, userId });
 
           let connections = server.websocketSessions!.get(sessionId);
           if (!connections) {
-            connections = new Set();
+            connections = new Map();
             server.websocketSessions!.set(sessionId, connections);
           }
-          connections.add(socket);
+          connections.set(socket, { userId, displayName: normalizedName });
 
           const broadcastState = async () => {
             try {
@@ -104,7 +122,7 @@ const getOrCreateWebSocketServer = (res: NextApiResponse): ExtendedServer => {
               };
               const data = JSON.stringify(envelope);
               
-              for (const client of connections!) {
+              for (const [client] of connections!) {
                 if (client.readyState === WebSocket.OPEN) {
                   client.send(data);
                 }
@@ -136,11 +154,50 @@ const getOrCreateWebSocketServer = (res: NextApiResponse): ExtendedServer => {
             }
           });
 
-          socket.on('close', () => {
-            console.info('ws connection closed', { sessionId });
+          socket.on('close', async () => {
+            console.info('ws connection closed', { sessionId, userId });
             connections!.delete(socket);
             if (connections!.size === 0) {
               server.websocketSessions!.delete(sessionId);
+            }
+
+            const stillConnected = Array.from(connections!.values()).some(
+              (entry) => entry.userId === userId,
+            );
+
+            if (stillConnected) {
+              return;
+            }
+
+            try {
+              const updated = await updateSessionState(sessionId, (state) => {
+                const before = state.participants.length;
+                state.participants = state.participants.filter((participant) => participant.userId !== userId);
+                if (before !== state.participants.length && state.meta.facilitatorId === userId) {
+                  const fallback = state.participants[0]?.userId;
+                  if (fallback) {
+                    state.meta.facilitatorId = fallback;
+                  }
+                }
+                delete state.votes[userId];
+              });
+
+              if (updated) {
+                const envelope: RealtimeEnvelope = {
+                  sessionId,
+                  event: 'state_sync',
+                  payload: updated.state,
+                  version: Date.now(),
+                };
+                const data = JSON.stringify(envelope);
+                for (const [client] of connections!) {
+                  if (client.readyState === WebSocket.OPEN) {
+                    client.send(data);
+                  }
+                }
+              }
+            } catch (disconnectError) {
+              console.error('Failed to cleanup disconnect:', disconnectError);
             }
           });
 

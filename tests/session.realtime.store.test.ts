@@ -7,7 +7,7 @@ class FakeRealtimeClient implements RealtimeClient {
   public handlers: RealtimeHandlers | null = null;
   public sentMessages: RealtimeEnvelope[] = [];
   public connected = false;
-  connect = (_sessionId: string, _token: string, handlers: RealtimeHandlers) => {
+  connect = (_sessionId: string, _token: string, handlers: RealtimeHandlers, _userId: string) => {
     this.handlers = handlers;
     this.connected = true;
     handlers.onOpen();

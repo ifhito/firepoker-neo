@@ -56,21 +56,29 @@ export default function FibonacciPanel({ session: propsSession, onFinalizingStar
   }, [session.votes, currentUserId, localVote, clearLocalVote, setLocalVote]);
 
   const baseDisabled = connectionStatus !== 'connected' || !currentUserId;
-  const voteDisabled = baseDisabled || session.phase !== 'VOTING';
-  const finalizeDisabled = baseDisabled || !canFinalize;
+  const noActivePbi = !session.activePbiId;
+  const voteDisabled = baseDisabled || session.phase !== 'VOTING' || noActivePbi;
+  const finalizeDisabled = baseDisabled || !canFinalize || noActivePbi;
+  const resetDisabled = baseDisabled || noActivePbi;
 
   const handleSelect = useCallback(
     (point: number) => {
+      if (voteDisabled) {
+        return;
+      }
       setLocalVote(point);
       sendVote(point);
     },
-    [sendVote, setLocalVote],
+    [sendVote, setLocalVote, voteDisabled],
   );
 
   const handleReset = useCallback(() => {
+    if (resetDisabled) {
+      return;
+    }
     clearLocalVote();
     resetVotes();
-  }, [clearLocalVote, resetVotes]);
+  }, [clearLocalVote, resetVotes, resetDisabled]);
 
   const handleFinalize = useCallback(() => {
     if (finalPoint === null) return;
@@ -248,7 +256,7 @@ export default function FibonacciPanel({ session: propsSession, onFinalizingStar
           className="session-button session-button--ghost"
           type="button"
           onClick={handleReset}
-          disabled={baseDisabled}
+          disabled={resetDisabled}
         >
           リセット
         </button>

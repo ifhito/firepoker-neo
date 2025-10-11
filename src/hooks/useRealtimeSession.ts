@@ -9,8 +9,10 @@ export const useRealtimeSession = () => {
   const lastError = useSessionRealtimeStore((state) => state.lastError);
   const localVote = useSessionRealtimeStore((state) => state.localVote);
   const currentUserId = useSessionRealtimeStore((state) => state.currentUserId);
+  const currentDisplayName = useSessionRealtimeStore((state) => state.currentDisplayName);
   const connect = useSessionRealtimeStore((state) => state.connect);
   const setCurrentUser = useSessionRealtimeStore((state) => state.setCurrentUser);
+  const setCurrentDisplayName = useSessionRealtimeStore((state) => state.setCurrentDisplayName);
   const setSessionSnapshot = useSessionRealtimeStore((state) => state.setSessionSnapshot);
   const disconnect = useSessionRealtimeStore((state) => state.disconnect);
   const sendVote = useSessionRealtimeStore((state) => state.sendVote);
@@ -41,6 +43,8 @@ export const useRealtimeSession = () => {
       setLocalVote,
       clearLocalVote,
       currentUserId,
+      currentDisplayName,
+      setCurrentDisplayName,
       addSessionPbi,
       removeSessionPbi,
       setActivePbi,
@@ -62,6 +66,8 @@ export const useRealtimeSession = () => {
       setLocalVote,
       clearLocalVote,
       currentUserId,
+      currentDisplayName,
+      setCurrentDisplayName,
       addSessionPbi,
       removeSessionPbi,
       setActivePbi,
