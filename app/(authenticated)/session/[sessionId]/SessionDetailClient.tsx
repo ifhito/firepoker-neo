@@ -34,6 +34,7 @@ export function SessionDetailClient({
 
   const {
     connectionStatus,
+    session: realtimeSession,
     setCurrentUser,
     connect,
     disconnect,
@@ -42,6 +43,7 @@ export function SessionDetailClient({
     addSessionPbi,
     removeSessionPbi,
     setActivePbi,
+    delegateFacilitator,
   } = useRealtimeSession();
   const { data: catalogData, refetch: refetchPbis } = usePbiQuery();
 
@@ -66,6 +68,9 @@ export function SessionDetailClient({
   const [finalizedPbiId, setFinalizedPbiId] = useState<string | null>(null);
   const [completedPbiIds, setCompletedPbiIds] = useState<string[]>([]);
   const [isFetchingSimilar, setIsFetchingSimilar] = useState(false);
+  const [hostSelection, setHostSelection] = useState<string>(initialState.meta.facilitatorId);
+  const [isDelegatingHost, setIsDelegatingHost] = useState(false);
+  const [hostDelegateError, setHostDelegateError] = useState<string | null>(null);
   const isFacilitator = sessionState.meta.facilitatorId === currentUserId;
   const canDisplaySimilar = sessionState.phase === 'REVEAL' || sessionState.phase === 'FINALIZED';
 
@@ -159,6 +164,16 @@ export function SessionDetailClient({
   }, [data, setSessionSnapshot]);
 
   useEffect(() => {
+    if (realtimeSession) {
+      setSessionState((prev) => (prev === realtimeSession ? prev : realtimeSession));
+    }
+  }, [realtimeSession]);
+
+  useEffect(() => {
+    setHostSelection(sessionState.meta.facilitatorId);
+  }, [sessionState.meta.facilitatorId]);
+
+  useEffect(() => {
     if (sessionState.activePbiId) {
       lastActivePbiIdRef.current = sessionState.activePbiId;
     }
@@ -207,8 +222,7 @@ export function SessionDetailClient({
 
       return ordered;
     });
-    setSessionSnapshot({ ...sessionState, meta: { ...sessionState.meta } });
-  }, [sessionState.meta.pbiIds, availablePbiCatalog, sessionState, setSessionSnapshot]);
+  }, [sessionState.meta.pbiIds, availablePbiCatalog]);
 
   useEffect(() => {
     if (activePbiDetail) {
@@ -433,6 +447,37 @@ export function SessionDetailClient({
     [removeSessionPbi],
   );
 
+  const handleDelegateHost = useCallback(
+    (nextHostId: string) => {
+      if (!nextHostId || nextHostId === sessionState.meta.facilitatorId) {
+        setHostSelection(sessionState.meta.facilitatorId);
+        return;
+      }
+      setIsDelegatingHost(true);
+      setHostDelegateError(null);
+      try {
+        delegateFacilitator(nextHostId);
+      } catch (error) {
+        const fallbackMessage = 'ホストの委譲に失敗しました。再度お試しください。';
+        let message = fallbackMessage;
+        if (error instanceof Error) {
+          if (error.message === 'Only host can delegate') {
+            message = 'ホストのみが委譲できます。';
+          } else if (error.message === 'WebSocket is not connected.') {
+            message = '接続が切断されています。再接続後にお試しください。';
+          } else {
+            message = error.message;
+          }
+        }
+        setHostDelegateError(message);
+        setHostSelection(sessionState.meta.facilitatorId);
+      } finally {
+        setIsDelegatingHost(false);
+      }
+    },
+    [delegateFacilitator, sessionState.meta.facilitatorId],
+  );
+
   const facilitator = useMemo(
     () =>
       sessionState.participants.find(
@@ -481,6 +526,7 @@ export function SessionDetailClient({
   }, [copyStatus, joinToken]);
 
   const combinedPbiError = selectionError ?? pbiActionError;
+  const canDelegateHost = sessionState.participants.length > 1;
 
   return (
     <div className="session-page">
@@ -524,7 +570,40 @@ export function SessionDetailClient({
             {facilitator && (
               <div className="session-header__host">
                 <span className="session-chip session-chip--host">ホスト</span>
-                <span className="session-header__host-name">{facilitator.displayName}</span>
+                {isFacilitator ? (
+                  <div className="session-host-control">
+                    <select
+                      className="session-host-select"
+                      value={hostSelection}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setHostSelection(value);
+                        handleDelegateHost(value);
+                      }}
+                      disabled={!canDelegateHost || isDelegatingHost}
+                      aria-label="ホストを委譲する"
+                    >
+                      {sessionState.participants.map((participant) => (
+                        <option key={participant.userId} value={participant.userId}>
+                          {participant.displayName}
+                          {participant.userId === sessionState.meta.facilitatorId ? ' (現ホスト)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="session-host-hint">
+                      {isDelegatingHost
+                        ? '委譲中...'
+                        : canDelegateHost
+                        ? '選択するとホストを変更できます'
+                        : '他の参加者が必要です'}
+                    </span>
+                    {hostDelegateError && (
+                      <span className="session-host-error">{hostDelegateError}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="session-header__host-name">{facilitator.displayName}</span>
+                )}
               </div>
             )}
             {shareUrl && (

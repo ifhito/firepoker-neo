@@ -32,7 +32,10 @@ const demoState: SessionState = {
   },
   phase: 'VOTING',
   votes: {},
-  participants: [],
+  participants: [
+    { userId: 'fac_demo', displayName: 'Host User', joinedAt: new Date().toISOString() },
+    { userId: 'member_1', displayName: 'Member 1', joinedAt: new Date().toISOString() },
+  ],
   activePbiId: 'pbi_001',
 };
 
@@ -101,5 +104,39 @@ describe('sessionRealtime store', () => {
     store.setLocalVote(3);
     store.resetVotes();
     expect(useSessionRealtimeStore.getState().localVote).toBeNull();
+  });
+
+  it('sends delegate_facilitator message when current user is host', () => {
+    const client = new FakeRealtimeClient();
+    const store = useSessionRealtimeStore.getState();
+    store.setCurrentUser('fac_demo');
+    store.connect(client, 'sess_test', 'token_123');
+    client.handlers?.onMessage({
+      sessionId: 'sess_test',
+      event: 'state_sync',
+      payload: demoState,
+    });
+
+    store.delegateFacilitator('member_1');
+
+    expect(client.sentMessages).toHaveLength(1);
+    expect(client.sentMessages[0]).toMatchObject({
+      event: 'delegate_facilitator',
+      payload: { userId: 'fac_demo', delegateTo: 'member_1' },
+    });
+  });
+
+  it('throws when non-host attempts to delegate facilitator', () => {
+    const client = new FakeRealtimeClient();
+    const store = useSessionRealtimeStore.getState();
+    store.setCurrentUser('member_1');
+    store.connect(client, 'sess_test', 'token_123');
+    client.handlers?.onMessage({
+      sessionId: 'sess_test',
+      event: 'state_sync',
+      payload: demoState,
+    });
+
+    expect(() => store.delegateFacilitator('fac_demo')).toThrow('Only host can delegate');
   });
 });

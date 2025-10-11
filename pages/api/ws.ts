@@ -1,7 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { WebSocketServer, WebSocket } from 'ws';
 import { getSessionRecord, getSessionJoinToken, updateSessionState } from '@/server/session/store';
-import { getSessionState, finalizeSession, updateSessionPbis, selectActivePbi } from '@/server/session/service';
+import {
+  getSessionState,
+  finalizeSession,
+  updateSessionPbis,
+  selectActivePbi,
+  delegateFacilitator,
+} from '@/server/session/service';
 import type { RealtimeEnvelope } from '@/client/realtime/types';
 import { HttpError } from '@/server/http/error';
 import type { IncomingMessage } from 'http';
@@ -220,6 +226,14 @@ const handleMessage = async (sessionId: string, joinToken: string, message: Real
         finalPoint: payload.finalPoint,
         memo: payload.memo,
       });
+      return;
+    }
+    case 'delegate_facilitator': {
+      const payload = (message.payload ?? {}) as { userId?: string; delegateTo?: string };
+      if (!payload.userId || !payload.delegateTo) {
+        throw new HttpError(400, 'ValidationError', 'userId and delegateTo are required');
+      }
+      await delegateFacilitator(sessionId, payload.userId, payload.delegateTo);
       return;
     }
     default:

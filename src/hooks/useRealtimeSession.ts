@@ -22,6 +22,7 @@ export const useRealtimeSession = () => {
   const addSessionPbi = useSessionRealtimeStore((state) => state.addSessionPbi);
   const removeSessionPbi = useSessionRealtimeStore((state) => state.removeSessionPbi);
   const setActivePbi = useSessionRealtimeStore((state) => state.setActivePbi);
+  const delegateFacilitator = useSessionRealtimeStore((state) => state.delegateFacilitator);
 
   return useMemo(
     () => ({
@@ -43,6 +44,7 @@ export const useRealtimeSession = () => {
       addSessionPbi,
       removeSessionPbi,
       setActivePbi,
+      delegateFacilitator,
     }),
     [
       connectionStatus,
@@ -63,6 +65,7 @@ export const useRealtimeSession = () => {
       addSessionPbi,
       removeSessionPbi,
       setActivePbi,
+      delegateFacilitator,
     ],
   );
 };

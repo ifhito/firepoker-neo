@@ -27,6 +27,7 @@ interface SessionRealtimeStore {
   addSessionPbi: (pbiId: string) => void;
   removeSessionPbi: (pbiId: string) => void;
   setActivePbi: (pbiId: string) => void;
+  delegateFacilitator: (nextFacilitatorId: string) => void;
 }
 
 const defaultEnvelope = (sessionId: string) => ({
@@ -188,6 +189,24 @@ export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) =
       ...defaultEnvelope(session.meta.sessionId),
       event: 'pbi_set_active',
       payload: { userId: currentUserId, pbiId },
+    });
+  },
+  delegateFacilitator: (nextFacilitatorId) => {
+    const { client, session, currentUserId } = get();
+    if (!client || !session || !client.isConnected()) {
+      set({ lastError: 'WebSocket is not connected.' });
+      throw new Error('WebSocket is not connected.');
+    }
+    if (!currentUserId) {
+      throw new Error('currentUserId is not set');
+    }
+    if (session.meta.facilitatorId !== currentUserId) {
+      throw new Error('Only host can delegate');
+    }
+    client.send({
+      ...defaultEnvelope(session.meta.sessionId),
+      event: 'delegate_facilitator',
+      payload: { userId: currentUserId, delegateTo: nextFacilitatorId },
     });
   },
 }));

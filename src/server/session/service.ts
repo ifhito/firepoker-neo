@@ -8,11 +8,7 @@ import type {
 import { generateJoinToken, generateSessionId } from '@/lib/ids';
 import { nowIsoString } from '@/server/utils/time';
 import { HttpError } from '@/server/http/error';
-import {
-  getSessionRecord,
-  updateSessionState,
-  upsertSession,
-} from './store';
+import { getSessionRecord, updateSessionState, upsertSession } from './store';
 import { findPbi, listSimilarPbis } from '@/server/pbi/service';
 import { getNotionClient } from '@/server/notion/client';
 import { ensureDemoSession } from './seed';
@@ -252,4 +248,38 @@ export const updateSessionPbis = async (
     similar: similar.items,
     pbis: detailedPbis.filter((item): item is NonNullable<typeof item> => Boolean(item)),
   };
+};
+
+export const delegateFacilitator = async (
+  sessionId: string,
+  actorId: string,
+  delegateTo: string,
+) => {
+  const record = await getSessionRecord(sessionId);
+  if (!record) {
+    throw new HttpError(404, 'NotFound', 'Session not found.');
+  }
+
+  if (record.state.meta.facilitatorId !== actorId) {
+    throw new HttpError(403, 'Unauthorized', 'Only current facilitator can delegate.');
+  }
+
+  const targetExists = record.state.participants.some((participant) => participant.userId === delegateTo);
+  if (!targetExists) {
+    throw new HttpError(400, 'ValidationError', 'Delegate target must be a session participant.');
+  }
+
+  if (record.state.meta.facilitatorId === delegateTo) {
+    return record.state;
+  }
+
+  const updated = await updateSessionState(sessionId, (state) => {
+    state.meta.facilitatorId = delegateTo;
+  });
+
+  if (!updated) {
+    throw new HttpError(404, 'NotFound', 'Session not found.');
+  }
+
+  return updated.state;
 };

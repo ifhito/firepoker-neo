@@ -7,6 +7,7 @@ import {
   selectActivePbi,
   registerParticipant,
   updateSessionPbis,
+  delegateFacilitator,
 } from '@/server/session/service';
 import { clearSessions, updateSessionState } from '@/server/session/store';
 import { HttpError } from '@/server/http/error';
@@ -193,6 +194,53 @@ describe('Session service', () => {
 
     const result = await updateSessionPbis(sessionId, joinToken, 'remove', 'pbi_002');
     expect(result.state.meta.pbiIds).not.toContain('pbi_002');
+  });
+
+  it('delegates facilitator role to another participant', async () => {
+    const { sessionId, joinToken } = await createSession({
+      title: 'Delegate Host',
+      facilitator: { id: 'fac_013', name: 'Original Host' },
+      pbiIds: ['pbi_001'],
+    });
+
+    await registerParticipant(sessionId, joinToken, {
+      userId: 'user_delegate',
+      displayName: 'Next Host',
+    });
+
+    const state = await delegateFacilitator(sessionId, 'fac_013', 'user_delegate');
+
+    expect(state.meta.facilitatorId).toBe('user_delegate');
+    expect(state.participants.some((p) => p.userId === 'user_delegate')).toBe(true);
+  });
+
+  it('rejects delegation when actor is not current facilitator', async () => {
+    const { sessionId, joinToken } = await createSession({
+      title: 'Invalid Delegation Actor',
+      facilitator: { id: 'fac_014', name: 'Original Host' },
+      pbiIds: ['pbi_001'],
+    });
+
+    await registerParticipant(sessionId, joinToken, {
+      userId: 'user_delegate',
+      displayName: 'Next Host',
+    });
+
+    await expect(delegateFacilitator(sessionId, 'user_delegate', 'fac_014')).rejects.toBeInstanceOf(
+      HttpError,
+    );
+  });
+
+  it('rejects delegation to non participant', async () => {
+    const { sessionId } = await createSession({
+      title: 'Delegate Non Participant',
+      facilitator: { id: 'fac_015', name: 'Original Host' },
+      pbiIds: ['pbi_001'],
+    });
+
+    await expect(delegateFacilitator(sessionId, 'fac_015', 'ghost_user')).rejects.toBeInstanceOf(
+      HttpError,
+    );
   });
 
 });
