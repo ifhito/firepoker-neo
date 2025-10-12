@@ -1,5 +1,5 @@
 # ============================================
-# VPC and Network Configuration
+# VPC and Network Configuration (Minimal)
 # ============================================
 
 resource "aws_vpc" "main" {
@@ -21,9 +21,9 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# Public Subnets
+# Public Subnets (ALB requires minimum 2 AZs)
 resource "aws_subnet" "public" {
-  count             = length(var.availability_zones)
+  count             = 2 # ALB minimum requirement
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
   availability_zone = var.availability_zones[count.index]
@@ -34,44 +34,6 @@ resource "aws_subnet" "public" {
     Name = "${var.project_name}-public-${var.availability_zones[count.index]}"
     Type = "public"
   }
-}
-
-# Private Subnets
-resource "aws_subnet" "private" {
-  count             = length(var.availability_zones)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 100)
-  availability_zone = var.availability_zones[count.index]
-
-  tags = {
-    Name = "${var.project_name}-private-${var.availability_zones[count.index]}"
-    Type = "private"
-  }
-}
-
-# Elastic IPs for NAT Gateways
-resource "aws_eip" "nat" {
-  count  = length(var.availability_zones)
-  domain = "vpc"
-
-  tags = {
-    Name = "${var.project_name}-nat-eip-${var.availability_zones[count.index]}"
-  }
-
-  depends_on = [aws_internet_gateway.main]
-}
-
-# NAT Gateways
-resource "aws_nat_gateway" "main" {
-  count         = length(var.availability_zones)
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-
-  tags = {
-    Name = "${var.project_name}-nat-${var.availability_zones[count.index]}"
-  }
-
-  depends_on = [aws_internet_gateway.main]
 }
 
 # Route Table for Public Subnets
@@ -90,31 +52,9 @@ resource "aws_route_table" "public" {
 
 # Route Table Association for Public Subnets
 resource "aws_route_table_association" "public" {
-  count          = length(var.availability_zones)
+  count          = 2
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
-}
-
-# Route Tables for Private Subnets
-resource "aws_route_table" "private" {
-  count  = length(var.availability_zones)
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
-  }
-
-  tags = {
-    Name = "${var.project_name}-private-rt-${var.availability_zones[count.index]}"
-  }
-}
-
-# Route Table Association for Private Subnets
-resource "aws_route_table_association" "private" {
-  count          = length(var.availability_zones)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
 }
 
 # ============================================
@@ -156,7 +96,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ECS Tasks Security Group
+# ECS Tasks Security Group (for public subnet deployment)
 resource "aws_security_group" "ecs" {
   name        = "${var.project_name}-ecs-sg"
   description = "Security group for ECS tasks"
@@ -171,7 +111,7 @@ resource "aws_security_group" "ecs" {
   }
 
   egress {
-    description = "Allow all outbound traffic"
+    description = "Allow all outbound traffic (for Notion API access)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -581,20 +521,15 @@ resource "aws_ecs_service" "main" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
+    subnets          = aws_subnet.public[*].id
     security_groups  = [aws_security_group.ecs.id]
-    assign_public_ip = false
+    assign_public_ip = true # Required for public subnet without NAT Gateway
   }
 
   load_balancer {
     target_group_arn = aws_lb_target_group.main.arn
     container_name   = "app"
     container_port   = 3000
-  }
-
-  deployment_configuration {
-    maximum_percent         = 200
-    minimum_healthy_percent = 100
   }
 
   enable_execute_command = true
@@ -610,49 +545,32 @@ resource "aws_ecs_service" "main" {
 }
 
 # ============================================
-# Auto Scaling
+# Auto Scaling (Optional for internal tools)
 # ============================================
 
-resource "aws_appautoscaling_target" "ecs" {
-  max_capacity       = var.ecs_max_capacity
-  min_capacity       = var.ecs_min_capacity
-  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.main.name}"
-  scalable_dimension = "ecs:service:DesiredCount"
-  service_namespace  = "ecs"
-}
-
-# CPU-based auto scaling
-resource "aws_appautoscaling_policy" "ecs_cpu" {
-  name               = "${var.project_name}-cpu-autoscaling"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.ecs.resource_id
-  scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.ecs.service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
-    }
-    target_value       = 70.0
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
-  }
-}
-
-# Memory-based auto scaling
-resource "aws_appautoscaling_policy" "ecs_memory" {
-  name               = "${var.project_name}-memory-autoscaling"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.ecs.resource_id
-  scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.ecs.service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
-    }
-    target_value       = 80.0
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
-  }
-}
+# Uncomment if you need auto scaling for peak usage
+# resource "aws_appautoscaling_target" "ecs" {
+#   max_capacity       = var.ecs_max_capacity
+#   min_capacity       = var.ecs_min_capacity
+#   resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.main.name}"
+#   scalable_dimension = "ecs:service:DesiredCount"
+#   service_namespace  = "ecs"
+# }
+#
+# # CPU-based auto scaling
+# resource "aws_appautoscaling_policy" "ecs_cpu" {
+#   name               = "${var.project_name}-cpu-autoscaling"
+#   policy_type        = "TargetTrackingScaling"
+#   resource_id        = aws_appautoscaling_target.ecs.resource_id
+#   scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
+#   service_namespace  = aws_appautoscaling_target.ecs.service_namespace
+#
+#   target_tracking_scaling_policy_configuration {
+#     predefined_metric_specification {
+#       predefined_metric_type = "ECSServiceAverageCPUUtilization"
+#     }
+#     target_value       = 70.0
+#     scale_in_cooldown  = 300
+#     scale_out_cooldown = 60
+#   }
+# }

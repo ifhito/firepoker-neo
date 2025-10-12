@@ -24,7 +24,7 @@ variable "vpc_cidr" {
 }
 
 variable "availability_zones" {
-  description = "List of availability zones"
+  description = "List of availability zones (ALB requires minimum 2)"
   type        = list(string)
   default     = ["ap-northeast-1a", "ap-northeast-1c"]
 }
@@ -73,15 +73,15 @@ variable "ecs_desired_count" {
 }
 
 variable "ecs_min_capacity" {
-  description = "Minimum number of tasks for auto scaling"
+  description = "Minimum number of tasks for auto scaling (not used if auto scaling disabled)"
   type        = number
   default     = 1
 }
 
 variable "ecs_max_capacity" {
-  description = "Maximum number of tasks for auto scaling"
+  description = "Maximum number of tasks for auto scaling (not used if auto scaling disabled)"
   type        = number
-  default     = 4
+  default     = 2
 }
 
 # Notion Configuration

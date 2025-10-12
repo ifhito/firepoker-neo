@@ -14,16 +14,22 @@
 
 ## 🏗️ 構成概要
 
-このTerraform構成では、以下のAWSリソースを作成します:
+このTerraform構成では、**社内ツール向けの最小構成**で以下のAWSリソースを作成します:
 
-- **ネットワーク**: VPC、パブリック/プライベートサブネット、NAT Gateway、Internet Gateway
+- **ネットワーク**: VPC、パブリックサブネット（2 AZ）、Internet Gateway
 - **ロードバランサー**: Application Load Balancer (ALB)
 - **コンテナ**: ECS Fargate クラスター、タスク定義、サービス
 - **ストレージ**: ECR リポジトリ
 - **シークレット**: Secrets Manager (Notion認証情報)
 - **ログ**: CloudWatch Logs
 - **セキュリティ**: Security Groups、IAM Roles
-- **オートスケーリング**: CPU/メモリベースの自動スケーリング
+
+### コスト最適化のポイント
+
+✅ **NAT Gateway削除** - パブリックサブネットで直接実行（月$90削減）  
+✅ **プライベートサブネット削除** - シンプルなネットワーク構成  
+✅ **Auto Scaling無効** - 固定1タスクで十分  
+✅ **最小リソース** - 0.25 vCPU / 512 MB (Fargate最小構成)
 
 ### アーキテクチャ図
 
@@ -31,15 +37,15 @@
 Internet
     │
     ▼
-[ALB (Public Subnets)]
+[ALB (Public Subnets × 2 AZ)]
     │
     ▼
-[ECS Tasks (Private Subnets)]
+[ECS Task (Public Subnet)]
     ├─ App Container (Next.js + Socket.IO)
     └─ Redis Container (サイドカー)
     │
     ▼
-[NAT Gateway] → [Notion API]
+[Internet Gateway] → [Notion API]
 ```
 
 ## ✅ 前提条件
@@ -150,9 +156,9 @@ terraform output ecr_repository_url
 
 ### 開発環境 (dev)
 
-- **タスク数**: 1
-- **リソース**: 0.5 vCPU / 1 GB メモリ
-- **オートスケーリング**: 1-2タスク
+- **タスク数**: 1（固定）
+- **リソース**: 0.25 vCPU / 512 MB メモリ（Fargate最小）
+- **コスト**: 約 **$30/月**
 
 ```bash
 terraform workspace select dev || terraform workspace new dev
@@ -161,9 +167,9 @@ terraform apply -var-file="dev.tfvars"
 
 ### 本番環境 (prod)
 
-- **タスク数**: 2 (冗長化)
-- **リソース**: 1 vCPU / 2 GB メモリ
-- **オートスケーリング**: 2-10タスク
+- **タスク数**: 1（固定、社内ツール用）
+- **リソース**: 0.5 vCPU / 1 GB メモリ
+- **コスト**: 約 **$50/月**
 
 ```bash
 terraform workspace select prod || terraform workspace new prod
@@ -177,18 +183,16 @@ terraform apply -var-file="prod.tfvars"
 | リソース | 説明 |
 |---------|------|
 | VPC | 10.0.0.0/16 (dev) または 10.1.0.0/16 (prod) |
-| パブリックサブネット | 各AZに1つ (ALB用) |
-| プライベートサブネット | 各AZに1つ (ECSタスク用) |
-| NAT Gateway | 各AZに1つ (高可用性) |
-| Internet Gateway | VPCに1つ |
+| パブリックサブネット | 2 AZ（ALB最小要件 + ECSタスク実行）|
+| Internet Gateway | VPCに1つ（外部通信用）|
 
 ### コンピューティング
 
 | リソース | 説明 |
 |---------|------|
 | ECS Cluster | Fargate対応、Container Insights有効 |
-| ECS Service | 希望タスク数: 1 (dev) / 2 (prod) |
-| Task Definition | App + Redis の2コンテナ構成 |
+| ECS Service | 固定1タスク（Auto Scaling無効）|
+| Task Definition | App + Redis の2コンテナ構成（サイドカーパターン）|
 
 ### セキュリティ
 
@@ -375,21 +379,28 @@ terraform destroy -var-file="prod.tfvars"
    - CloudWatch Logsで異常を監視
    - AWS CloudTrailで操作履歴を記録
 
-## 💰 コスト見積もり
+## 💰 コスト見積もり（最小構成）
 
-### 開発環境 (1タスク)
+### 開発環境 (1タスク、最小リソース)
+
+- **ECS Fargate**: 0.25 vCPU × $0.04656/h + 0.5 GB × $0.00511/h ≈ **$12/月**
+- **ALB**: $0.0243/h ≈ **$18/月**
+- **合計**: 約 **$30/月** 🎉
+
+### 本番環境 (1タスク)
 
 - **ECS Fargate**: 0.5 vCPU × $0.04656/h + 1 GB × $0.00511/h ≈ **$28/月**
-- **NAT Gateway**: 2 AZ × $0.062/h ≈ **$90/月**
 - **ALB**: $0.0243/h ≈ **$18/月**
-- **合計**: 約 **$136/月**
+- **合計**: 約 **$46/月** 🎉
 
-### 本番環境 (2タスク)
+### 💡 コスト削減ポイント
 
-- **ECS Fargate**: (1 vCPU × $0.04656/h + 2 GB × $0.00511/h) × 2 ≈ **$94/月**
-- **NAT Gateway**: 2 AZ × $0.062/h ≈ **$90/月**
-- **ALB**: $0.0243/h ≈ **$18/月**
-- **合計**: 約 **$202/月**
+- ✅ **NAT Gateway削除**: **$90/月削減**（パブリックサブネット使用）
+- ✅ **Auto Scaling無効**: 固定1タスクで十分
+- ✅ **最小リソース**: Fargate最小構成（0.25 vCPU / 512 MB）
+- ✅ **プライベートサブネット不要**: シンプルな構成
+
+**従来構成 $136/月 → 最小構成 $30/月（78%削減！）**
 
 *注: データ転送料やCloudWatch Logs料金は含まれていません*
 

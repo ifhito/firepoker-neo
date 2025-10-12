@@ -1,4 +1,4 @@
-# Production Environment Configuration
+# Production Environment Configuration (Minimal for internal tool)
 aws_region  = "ap-northeast-1"
 environment = "prod"
 project_name = "firepoker"
@@ -7,19 +7,19 @@ project_name = "firepoker"
 vpc_cidr           = "10.1.0.0/16"
 availability_zones = ["ap-northeast-1a", "ap-northeast-1c"]
 
-# ECS Configuration (Production-sized)
-ecs_task_cpu    = 1024 # 1 vCPU
-ecs_task_memory = 2048 # 2 GB
+# ECS Configuration (Balanced for internal production use)
+ecs_task_cpu    = 512  # 0.5 vCPU
+ecs_task_memory = 1024 # 1 GB
 
-ecs_app_cpu    = 768  # 0.75 vCPU
-ecs_app_memory = 1536 # 1.5 GB
+ecs_app_cpu    = 384  # 0.375 vCPU
+ecs_app_memory = 768  # 768 MB
 
-ecs_redis_cpu    = 256 # 0.25 vCPU
-ecs_redis_memory = 512 # 512 MB
+ecs_redis_cpu    = 128 # 0.125 vCPU
+ecs_redis_memory = 256 # 256 MB
 
-ecs_desired_count = 2
-ecs_min_capacity  = 2
-ecs_max_capacity  = 10
+ecs_desired_count = 1  # Single task sufficient for internal use
+ecs_min_capacity  = 1
+ecs_max_capacity  = 1  # No auto scaling needed
 
 # Notion Configuration
 # Set these via environment variables or -var flags:

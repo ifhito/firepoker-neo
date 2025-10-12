@@ -71,8 +71,8 @@ setup_terraform() {
 
 select_environment() {
     print_info "デプロイ環境を選択してください:"
-    echo "  1) dev  - 開発環境 (0.5 vCPU / 1 GB, 1タスク)"
-    echo "  2) prod - 本番環境 (1 vCPU / 2 GB, 2タスク)"
+    echo "  1) dev  - 開発環境 (0.25 vCPU / 512 MB, 1タスク, ~$30/月)"
+    echo "  2) prod - 本番環境 (0.5 vCPU / 1 GB, 1タスク, ~$46/月)"
     echo ""
     read -p "選択 (1 or 2): " env_choice
 
@@ -124,10 +124,10 @@ plan_infrastructure() {
 }
 
 apply_infrastructure() {
-    print_warning "以下のインフラをデプロイします:"
-    echo "  - VPC, サブネット, NAT Gateway"
+    print_warning "以下のインフラをデプロイします（最小構成）:"
+    echo "  - VPC + パブリックサブネット (NAT Gatewayなし)"
     echo "  - Application Load Balancer"
-    echo "  - ECS Fargate クラスター"
+    echo "  - ECS Fargate クラスター (1タスク固定)"
     echo "  - ECR リポジトリ"
     echo "  - CloudWatch Logs"
     echo "  - Secrets Manager"
@@ -135,10 +135,11 @@ apply_infrastructure() {
     
     # Cost estimation
     if [[ "${ENVIRONMENT}" == "dev" ]]; then
-        print_info "推定コスト: 約 $136/月"
+        print_info "推定コスト: 約 $30/月 (0.25 vCPU / 512 MB)"
     else
-        print_info "推定コスト: 約 $202/月"
+        print_info "推定コスト: 約 $46/月 (0.5 vCPU / 1 GB)"
     fi
+    print_success "💰 NAT Gateway削減で従来比 78% コスト削減!"
     echo ""
     
     read -p "デプロイを実行しますか? (yes/no): " confirm
