@@ -20,7 +20,7 @@ export const config = {
   },
 };
 
-type SessionConnections = Map<string, Map<WebSocket, { userId: string }>>;
+type SessionConnections = Map<string, Map<WebSocket, { userId: string; displayName?: string }>>;
 
 type ExtendedServer = {
   wss?: WebSocketServer;

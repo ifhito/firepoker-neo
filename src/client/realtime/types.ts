@@ -10,7 +10,8 @@ export type RealtimeEventName =
   | 'ping'
   | 'pbi_add'
   | 'pbi_remove'
-  | 'pbi_set_active';
+  | 'pbi_set_active'
+  | 'delegate_facilitator';
 
 export interface RealtimeEnvelope<T = unknown> {
   sessionId: string;
