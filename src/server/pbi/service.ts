@@ -4,6 +4,7 @@ import { getNotionClient } from '@/server/notion/client';
 export const listPbis = async (params: {
   status?: string;
   search?: string;
+  sprint?: string;
 }): Promise<PBIListResponse> => {
   const notion = getNotionClient();
   const items = await notion.listPBIs(params);

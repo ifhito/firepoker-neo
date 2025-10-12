@@ -10,6 +10,7 @@ const {
   storyPoint: STORY_POINT_PROPERTY,
   assignee: ASSIGNEE_PROPERTY,
   epic: EPIC_PROPERTY,
+  sprint: SPRINT_PROPERTY,
   lastEstimatedAt: LAST_ESTIMATED_AT_PROPERTY,
 } = notionPropertyConfig;
 
@@ -19,6 +20,7 @@ const propertyOptions = {
   ...(STORY_POINT_PROPERTY ? { storyPointProperty: STORY_POINT_PROPERTY } : {}),
   ...(ASSIGNEE_PROPERTY ? { assigneeProperty: ASSIGNEE_PROPERTY } : {}),
   ...(EPIC_PROPERTY ? { epicProperty: EPIC_PROPERTY } : {}),
+  ...(SPRINT_PROPERTY ? { sprintProperty: SPRINT_PROPERTY } : {}),
   ...(LAST_ESTIMATED_AT_PROPERTY ? { lastEstimatedAtProperty: LAST_ESTIMATED_AT_PROPERTY } : {}),
 };
 
@@ -35,7 +37,7 @@ const formatNotionId = (id: string) => {
 };
 
 export interface NotionClient {
-  listPBIs(params: { status?: string; search?: string }): Promise<ProductBacklogItem[]>;
+  listPBIs(params: { status?: string; search?: string; sprint?: string }): Promise<ProductBacklogItem[]>;
   findPBI(id: string): Promise<ProductBacklogItem | null>;
   listSimilarPbis(pbiId: string): Promise<ProductBacklogItem[]>;
   listPbisByStoryPoints(points: number[]): Promise<ProductBacklogItem[]>;
@@ -45,13 +47,16 @@ export interface NotionClient {
 class MockNotionClient implements NotionClient {
   constructor(private readonly dataset: ProductBacklogItem[]) {}
 
-  async listPBIs(params: { status?: string; search?: string }) {
+  async listPBIs(params: { status?: string; search?: string; sprint?: string }) {
     return this.dataset.filter((item) => {
       const statusOk = params.status ? item.status === params.status : true;
       const searchOk = params.search
         ? item.title.toLowerCase().includes(params.search.toLowerCase())
         : true;
-      return statusOk && searchOk;
+      const sprintOk = params.sprint
+        ? item.sprint?.toLowerCase().includes(params.sprint.toLowerCase())
+        : true;
+      return statusOk && searchOk && sprintOk;
     });
   }
 
@@ -86,7 +91,7 @@ class MockNotionClient implements NotionClient {
   async listPbisByStoryPoints(points: number[]) {
     const allowedStatuses = new Set(ALLOWED_SIMILAR_STATUSES);
     
-    return this.dataset
+    const allItems = this.dataset
       .filter(
         (item) =>
           item.storyPoint !== null &&
@@ -99,6 +104,22 @@ class MockNotionClient implements NotionClient {
         const timeB = b.lastEstimatedAt ? Date.parse(b.lastEstimatedAt) : 0;
         return timeB - timeA;
       });
+    
+    // 各ポイントごとに最大5件に絞る
+    const grouped = new Map<number, ProductBacklogItem[]>();
+    for (const item of allItems) {
+      if (item.storyPoint === null) continue;
+      if (!grouped.has(item.storyPoint)) {
+        grouped.set(item.storyPoint, []);
+      }
+      const group = grouped.get(item.storyPoint)!;
+      if (group.length < 5) {
+        group.push(item);
+      }
+    }
+    
+    // フラットに戻す
+    return Array.from(grouped.values()).flat();
   }
 
   async updateStoryPoint(pbiId: string, point: number) {
@@ -166,7 +187,7 @@ class RealNotionClient implements NotionClient {
     return schema;
   }
 
-  async listPBIs(params: { status?: string; search?: string }) {
+  async listPBIs(params: { status?: string; search?: string; sprint?: string }) {
     const schema = await this.loadSchema();
     const filterClauses: any[] = [];
     if (params.status && STATUS_PROPERTY) {
@@ -189,6 +210,20 @@ class RealNotionClient implements NotionClient {
         property: TITLE_PROPERTY,
         title: { contains: params.search },
       });
+    }
+    if (params.sprint && SPRINT_PROPERTY) {
+      const sprintType = schema[SPRINT_PROPERTY];
+      if (sprintType === 'select') {
+        filterClauses.push({
+          property: SPRINT_PROPERTY,
+          select: { equals: params.sprint },
+        });
+      } else if (sprintType === 'rich_text') {
+        filterClauses.push({
+          property: SPRINT_PROPERTY,
+          rich_text: { contains: params.sprint },
+        });
+      }
     }
 
     const body: Record<string, unknown> = {
@@ -341,7 +376,23 @@ class RealNotionClient implements NotionClient {
       body: JSON.stringify(query),
     }));
 
-    return extractPages(response as any, propertyOptions);
+    const allItems = extractPages(response as any, propertyOptions);
+    
+    // 各ポイントごとに最大5件に絞る
+    const grouped = new Map<number, ProductBacklogItem[]>();
+    for (const item of allItems) {
+      if (item.storyPoint === null) continue;
+      if (!grouped.has(item.storyPoint)) {
+        grouped.set(item.storyPoint, []);
+      }
+      const group = grouped.get(item.storyPoint)!;
+      if (group.length < 5) {
+        group.push(item);
+      }
+    }
+    
+    // フラットに戻す
+    return Array.from(grouped.values()).flat();
   }
 
   async updateStoryPoint(pbiId: string, point: number, memo?: string | null) {

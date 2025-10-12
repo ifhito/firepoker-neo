@@ -44,7 +44,10 @@ export function SessionDetailClient({
     setActivePbi,
     delegateFacilitator,
   } = useRealtimeSession();
-  const { data: catalogData, refetch: refetchPbis } = usePbiQuery();
+  const [sprintFilter, setSprintFilter] = useState<string>('');
+  const { data: catalogData, refetch: refetchPbis, isFetching: isFetchingPbis } = usePbiQuery(
+    sprintFilter ? { sprint: sprintFilter } : undefined
+  );
 
   const STORAGE_KEY = `firepocker-session-${sessionId}`;
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -510,6 +513,10 @@ export function SessionDetailClient({
     [delegateFacilitator, sessionState.meta.facilitatorId],
   );
 
+  const handleSprintSearch = useCallback((sprint: string) => {
+    setSprintFilter(sprint);
+  }, []);
+
   const facilitator = useMemo(
     () =>
       sessionState.participants.find(
@@ -689,6 +696,8 @@ export function SessionDetailClient({
               isAdding={isAddingPbi}
               excludedPbiIds={completedPbiIds}
               canManage={isFacilitator}
+              onSprintSearch={handleSprintSearch}
+              isSearching={isFetchingPbis}
             />
 
             <FibonacciPanel

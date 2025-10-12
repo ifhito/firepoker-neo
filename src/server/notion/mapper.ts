@@ -75,6 +75,7 @@ export const mapPageToProductBacklogItem = (
     storyPointProperty?: string;
     assigneeProperty?: string;
     epicProperty?: string;
+    sprintProperty?: string;
     lastEstimatedAtProperty?: string;
   },
 ): ProductBacklogItem | null => {
@@ -88,6 +89,7 @@ export const mapPageToProductBacklogItem = (
     storyPointProperty = 'StoryPoint',
     assigneeProperty = 'Assignee',
     epicProperty = 'Epic',
+    sprintProperty = 'Sprint',
     lastEstimatedAtProperty = 'LastEstimatedAt',
   } = options ?? {};
 
@@ -104,6 +106,7 @@ export const mapPageToProductBacklogItem = (
     storyPoint: pickNumber(page, storyPointProperty),
     assignee: pickPeople(page, assigneeProperty) ?? pickRichText(page, assigneeProperty),
     epic: pickSelect(page, epicProperty) ?? pickRichText(page, epicProperty),
+    sprint: pickSelect(page, sprintProperty) ?? pickRichText(page, sprintProperty),
     lastEstimatedAt: pickDate(page, lastEstimatedAtProperty),
     notionUrl: page.url,
   };

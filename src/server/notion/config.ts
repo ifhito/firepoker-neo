@@ -9,6 +9,7 @@ const envSchema = z.object({
   NOTION_PBI_STORYPOINT_PROPERTY: z.string().min(1).optional(),
   NOTION_PBI_ASSIGNEE_PROPERTY: z.string().min(1).optional(),
   NOTION_PBI_EPIC_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_SPRINT_PROPERTY: z.string().min(1).optional(),
   NOTION_PBI_LASTESTIMATED_PROPERTY: z.string().min(1).optional(),
 });
 
@@ -29,6 +30,7 @@ export const notionEnv = parsed.success
       NOTION_PBI_STORYPOINT_PROPERTY: undefined,
       NOTION_PBI_ASSIGNEE_PROPERTY: undefined,
       NOTION_PBI_EPIC_PROPERTY: undefined,
+      NOTION_PBI_SPRINT_PROPERTY: undefined,
       NOTION_PBI_LASTESTIMATED_PROPERTY: undefined,
     };
 
@@ -55,5 +57,6 @@ export const notionPropertyConfig = {
   storyPoint: notionEnv.NOTION_PBI_STORYPOINT_PROPERTY ?? 'StoryPoint',
   assignee: notionEnv.NOTION_PBI_ASSIGNEE_PROPERTY ?? 'Assignee',
   epic: notionEnv.NOTION_PBI_EPIC_PROPERTY ?? 'Epic',
+  sprint: notionEnv.NOTION_PBI_SPRINT_PROPERTY ?? 'Sprint',
   lastEstimatedAt: notionEnv.NOTION_PBI_LASTESTIMATED_PROPERTY ?? 'LastEstimatedAt',
 };
