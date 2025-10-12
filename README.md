@@ -114,12 +114,55 @@ NOTION_PBI_LASTESTIMATED_PROPERTY=LastEstimatedAt # (任意) 最終見積り日�
 | Epic               | Select / Text  | 任意 |
 | LastEstimatedAt    | Date           | 無ければソートされません |
 
+## インフラ構築
+
+### AWS へのデプロイ
+
+FirePokerは AWS ECS Fargate 上で動作します。
+
+#### クイックスタート
+
+```bash
+# Notion認証情報を設定
+export TF_VAR_notion_token="secret_YOUR_TOKEN"
+export TF_VAR_notion_pbi_db_id="YOUR_DB_ID"
+
+# インフラをデプロイ（対話型）
+./scripts/terraform-setup.sh
+
+# アプリケーションをデプロイ
+./scripts/build-and-push.sh
+./scripts/deploy-ecs.sh
+```
+
+詳細は以下のドキュメントを参照：
+- 📚 [完全インフラガイド](./docs/infrastructure.md) - 詳細な構築手順とトラブルシューティング
+- ⚡ [クイックスタート](./docs/quick-start.md) - 5分でデプロイ
+- 🏗️ [Terraform README](./terraform/README.md) - Terraform の使い方
+
+#### コスト
+
+- **開発環境**: 約 **$30/月** (0.25 vCPU / 512 MB)
+- **本番環境**: 約 **$46/月** (0.5 vCPU / 1 GB)
+
+社内ツール向けに最適化された最小コスト構成です。
+
+#### アーキテクチャ
+
+```
+Internet → ALB → ECS Task (App + Redis) → Notion API
+```
+
+- VPC パブリックサブネット構成（NAT Gateway不要）
+- 1タスク固定（Auto Scaling無効）
+- App と Redis のサイドカーパターン
+
 ## 今後の拡張ポイント
 
-- Notion API クライアントの本実装とキャッシュ戦略。
-- WebSocket サーバー (Fastify + ws) とのリアルタイム連携。
-- ファシリテーター委譲イベント含むリアルタイム制御の堅牢化 (Redis 永続化やイベンチュアル整合性の検討)。
-- Terraform / GitHub Actions による IaC & CI/CD パイプラインの整備。
+- ✅ ~~Terraform / GitHub Actions による IaC & CI/CD パイプラインの整備~~ (完了)
+- HTTPS/SSL 証明書の設定 (ACM + Route53)
+- CloudWatch アラームの設定
+- ElastiCache Redis への移行（複数タスク対応）
 
 ## 使い方 (ローカル)
 
