@@ -66,13 +66,19 @@
 - [x] ECS デプロイスクリプト作成
 - [x] GitHub Actions ワークフロー作成 (CI/CD)
 - [x] デプロイドキュメント作成
-- [ ] Terraform プロジェクト初期化・環境別ワークスペース構築
-- [ ] VPC / サブネット / セキュリティグループ定義
-- [ ] ALB + ターゲットグループ + リスナー（HTTPS/WSS）の設定
-- [ ] ECS クラスター作成
-- [ ] ECR リポジトリ作成
+- [x] Terraform プロジェクト初期化・環境別ワークスペース構築
+- [x] VPC / サブネット / セキュリティグループ定義
+- [x] ALB + ターゲットグループ + リスナー（HTTP/HTTPS）の設定
+- [x] ECS クラスター作成 (Fargate対応)
+- [x] ECR リポジトリ作成
+- [x] Secrets Manager にシークレット登録
+- [x] IAM ロール設定 (Task Execution Role, Task Role)
+- [x] CloudWatch Logs 設定
+- [x] Auto Scaling 設定 (CPU/メモリベース)
+- [x] Terraform セットアップスクリプト作成
+- [x] Terraform クリーンアップスクリプト作成
+- [x] Terraform ドキュメント作成 (README.md)
 - [ ] S3 + CloudFront (静的アセット) 構築
-- [ ] Secrets Manager にシークレット登録
 - [ ] SNS + CloudWatch アラーム (接続失敗率、Redisメモリ、Notion失敗) 設計
 - [ ] `joinToken` HMAC 署名ロジックと有効期限チェック
 - [ ] HTTPS/WSS 強制、CORS/WAF 設定
