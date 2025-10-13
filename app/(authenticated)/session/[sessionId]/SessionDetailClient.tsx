@@ -9,6 +9,7 @@ import PbiSelectionPanel from './components/PbiSelectionPanel';
 import { useRealtimeSession } from '@/hooks/useRealtimeSession';
 import { usePbiQuery } from '@/hooks/usePbiQuery';
 import { createWebSocketClient } from '@/client/realtime/websocketClient';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface SessionDetailClientProps {
   sessionId: string;
@@ -397,16 +398,8 @@ export function SessionDetailClient({
     if (!shareUrl) {
       return;
     }
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
-      setCopyStatus('error');
-      if (copyResetRef.current) {
-        clearTimeout(copyResetRef.current);
-      }
-      copyResetRef.current = setTimeout(() => setCopyStatus('idle'), 3000);
-      return;
-    }
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await copyToClipboard(shareUrl);
       setCopyStatus('copied');
       if (copyResetRef.current) {
         clearTimeout(copyResetRef.current);

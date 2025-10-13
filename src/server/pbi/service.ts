@@ -6,6 +6,11 @@ export const listPbis = async (params: {
   search?: string;
   sprint?: string;
 }): Promise<PBIListResponse> => {
+  // スプリントが指定されていない場合は空配列を返す（全件取得を防ぐ）
+  if (!params.sprint) {
+    return { items: [], nextCursor: null };
+  }
+
   const notion = getNotionClient();
   const items = await notion.listPBIs(params);
   return { items, nextCursor: null };

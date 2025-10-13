@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { SessionState } from '@/domain/session';
 import type { RealtimeClient, RealtimeEnvelope } from '@/client/realtime/types';
+import { generateUserId } from '@/lib/ids';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -41,7 +42,7 @@ interface SessionRealtimeStore {
 const defaultEnvelope = (sessionId: string) => ({
   sessionId,
   version: Date.now(),
-  nonce: crypto.randomUUID(),
+  nonce: generateUserId(),
 });
 
 export const useSessionRealtimeStore = create<SessionRealtimeStore>((set, get) => ({

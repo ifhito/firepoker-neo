@@ -78,6 +78,15 @@
 - [x] Terraform セットアップスクリプト作成
 - [x] Terraform クリーンアップスクリプト作成
 - [x] Terraform ドキュメント作成 (README.md)
+- [x] ARM64 アーキテクチャ対応 (Dockerビルド & ECS Fargate)
+- [x] IP制限実装 (ALBセキュリティグループ)
+- [x] crypto.randomUUID エラーの修正 (nanoid で代替実装)
+- [x] generateUserId 関数の追加とテスト作成
+- [x] Clipboard API のHTTP環境対応 (execCommand フォールバック実装)
+- [x] スプリント未指定時のPBI全件取得防止（パフォーマンス対策）
+- [x] 動的ルートの静的生成無効化（ECSヘルスチェック対応）
+- [x] PbiSelectionPanel のスプリント検索フォーム表示条件修正
+- [x] ECSヘルスチェック設定の最適化（安定性向上）
 - [ ] S3 + CloudFront (静的アセット) 構築
 - [ ] SNS + CloudWatch アラーム (接続失敗率、Redisメモリ、Notion失敗) 設計
 - [ ] `joinToken` HMAC 署名ロジックと有効期限チェック

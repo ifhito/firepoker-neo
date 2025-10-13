@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { listSimilarPbis } from '@/server/pbi/service';
 import { toErrorResponse } from '@/server/http/error';
 
+// 動的ルートを完全にダイナミックにする
+export const dynamic = 'force-dynamic';
+
 const paramsSchema = z.object({
   id: z.string().min(1),
 });

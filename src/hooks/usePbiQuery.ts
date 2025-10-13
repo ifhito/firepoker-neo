@@ -22,6 +22,8 @@ export const usePbiQuery = (params?: { status?: string; search?: string; sprint?
   return useQuery({
     queryKey: ['pbis', params?.status ?? '', params?.search ?? '', params?.sprint ?? ''],
     queryFn: () => fetchPbis(params),
+    // スプリントが指定されていない場合はクエリを実行しない
+    enabled: !!params?.sprint,
   });
 };
 

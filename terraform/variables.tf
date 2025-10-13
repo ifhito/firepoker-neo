@@ -116,3 +116,10 @@ variable "container_image" {
   type        = string
   default     = "latest" # Will be replaced with ECR repository URL
 }
+
+# IP Whitelist Configuration
+variable "allowed_cidr_blocks" {
+  description = "List of CIDR blocks allowed to access the application"
+  type        = list(string)
+  default     = ["0.0.0.0/0"] # Allow all by default, override in tfvars
+}

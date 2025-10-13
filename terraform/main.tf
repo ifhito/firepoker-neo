@@ -68,19 +68,19 @@ resource "aws_security_group" "alb" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTP from Internet"
+    description = "HTTP from allowed IPs"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_cidr_blocks
   }
 
   ingress {
-    description = "HTTPS from Internet"
+    description = "HTTPS from allowed IPs"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_cidr_blocks
   }
 
   egress {
@@ -153,13 +153,13 @@ resource "aws_lb_target_group" "main" {
   health_check {
     enabled             = true
     healthy_threshold   = 2
-    interval            = 30
+    interval            = 15
     matcher             = "200"
     path                = "/api/health"
     port                = "traffic-port"
     protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 3
+    timeout             = 10
+    unhealthy_threshold = 5
   }
 
   deregistration_delay = 30
@@ -404,6 +404,10 @@ resource "aws_ecs_task_definition" "main" {
   memory                   = var.ecs_task_memory
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
 
   container_definitions = jsonencode([
     {
@@ -454,14 +458,6 @@ resource "aws_ecs_task_definition" "main" {
           "awslogs-stream-prefix" = "app"
         }
       }
-
-      healthCheck = {
-        command     = ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
-      }
     },
     {
       name      = "redis"
@@ -497,9 +493,9 @@ resource "aws_ecs_task_definition" "main" {
       healthCheck = {
         command     = ["CMD-SHELL", "redis-cli ping || exit 1"]
         interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 30
+        timeout     = 10
+        retries     = 5
+        startPeriod = 60
       }
     }
   ])
