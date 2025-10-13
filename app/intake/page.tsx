@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import { nanoid } from 'nanoid';
 import { buildSessionEntryPath, buildSessionJoinLink, persistSessionIdentity } from '@/lib/sessionStorage';
+import { copyToClipboard } from '@/lib/clipboard';
 
 export default function IntakePage() {
   const router = useRouter();
@@ -57,11 +58,11 @@ export default function IntakePage() {
 
       const entryPath = buildSessionEntryPath(data.sessionId, data.joinToken);
       const shareUrl = buildSessionJoinLink(data.sessionId, data.joinToken, window.location.origin);
-      if (navigator?.clipboard?.writeText) {
-        navigator.clipboard.writeText(shareUrl).catch(() => {
-          /* clipboard may fail silently */
-        });
-      }
+      
+      // クリップボードにコピー（HTTP環境でも動作）
+      copyToClipboard(shareUrl).catch(() => {
+        /* clipboard may fail silently */
+      });
 
       router.push(entryPath as Route);
       return;

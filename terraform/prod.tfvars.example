@@ -1,0 +1,33 @@
+# Production Environment Configuration
+# Copy this file to prod.tfvars and fill in your actual values
+
+project_name = "firepoker-prod"
+aws_region   = "ap-northeast-1"
+
+# Notion API Configuration
+# Get these from your Notion integration settings
+notion_token     = "ntn_YOUR_NOTION_TOKEN_HERE"
+notion_pbi_db_id = "YOUR_NOTION_DATABASE_ID_HERE"
+
+# IP Restrictions
+# Add your IP addresses in CIDR notation
+allowed_cidr_blocks = [
+  "YOUR_OFFICE_IP/32",
+  "YOUR_VPN_IP/32",
+]
+
+# Zscaler IP Whitelist
+# Set to true to automatically include Zscaler public IPs
+enable_zscaler_ips = true
+
+# Filter Zscaler IPs by city (optional)
+# Example: ["Tokyo"] for Tokyo only, ["Tokyo", "Osaka"] for multiple cities
+# Leave empty [] to include all cities
+zscaler_city_filter = ["Tokyo"]
+
+# ECS Configuration
+ecs_desired_count = 2  # Increased for production
+ecs_app_cpu       = 512
+ecs_app_memory    = 1024
+ecs_redis_cpu     = 128
+ecs_redis_memory  = 256

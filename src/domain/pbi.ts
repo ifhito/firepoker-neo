@@ -7,6 +7,7 @@ export interface ProductBacklogItem {
   storyPoint: number | null;
   assignee: string | null;
   epic: string | null;
+  sprint: string | null;
   lastEstimatedAt: string | null;
   notionUrl?: string;
 }

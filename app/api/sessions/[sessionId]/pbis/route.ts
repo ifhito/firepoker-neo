@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { updateSessionPbis } from '@/server/session/service';
 import { HttpError, toErrorResponse } from '@/server/http/error';
 
+export const dynamic = 'force-dynamic';
+
 const paramsSchema = z.object({
   sessionId: z.string().min(1),
 });

@@ -8,3 +8,8 @@ export const generateSessionId = () => `sess_${sessionIdGenerator()}`;
 const tokenGenerator = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 24);
 
 export const generateJoinToken = () => tokenGenerator();
+
+// ユーザーID生成用のジェネレータ
+const userIdGenerator = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 16);
+
+export const generateUserId = () => `user_${userIdGenerator()}`;

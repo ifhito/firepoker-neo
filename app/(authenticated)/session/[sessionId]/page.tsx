@@ -5,6 +5,10 @@ import { ensureDemoSession } from '@/server/session/seed';
 import { getSessionJoinToken } from '@/server/session/store';
 import SessionDetailClient from './SessionDetailClient';
 
+// 動的ルートを完全にダイナミックにする（ビルド時の静的生成を無効化）
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
+
 interface SessionPageProps {
   params: { sessionId: string };
   searchParams: { token?: string };

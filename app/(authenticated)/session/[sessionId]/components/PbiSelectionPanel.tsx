@@ -18,6 +18,8 @@ interface PbiSelectionPanelProps {
   isAdding?: boolean;
   excludedPbiIds?: string[];
   canManage?: boolean;
+  onSprintSearch?: (sprint: string) => void;
+  isSearching?: boolean;
 }
 
 const sortPbis = (pbis: ProductBacklogItem[]) =>
@@ -38,6 +40,8 @@ export default function PbiSelectionPanel({
   isAdding,
   excludedPbiIds = [],
   canManage = false,
+  onSprintSearch,
+  isSearching = false,
 }: PbiSelectionPanelProps) {
   const sorted = useMemo(() => sortPbis(pbis), [pbis]);
   const addable = useMemo(
@@ -55,10 +59,12 @@ export default function PbiSelectionPanel({
 
   const hasJoinToken = Boolean(joinToken);
   const [selectedAddId, setSelectedAddId] = useState<string>('');
+  const [sprintInput, setSprintInput] = useState<string>('');
   const activeIndex = activePbiId ? sorted.findIndex((item) => item.id === activePbiId) : -1;
   const activePbi = activeIndex >= 0 ? sorted[activeIndex] : null;
   const hasPbi = sorted.length > 0;
-  const shouldShowAddForm = Boolean(canManage && onAdd && hasJoinToken && addable.length > 0 && !hasPbi);
+  const shouldShowAddForm = Boolean(canManage && onAdd && hasJoinToken && !hasPbi);
+  const shouldShowPbiSelect = shouldShowAddForm && addable.length > 0;
 
   const handleSelect = useCallback(
     (pbiId: string) => {
@@ -182,39 +188,93 @@ export default function PbiSelectionPanel({
       )}
 
       {shouldShowAddForm && onAdd && (
-        <form
-          className="session-current__add"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!selectedAddId) return;
-            onAdd(selectedAddId);
-            setSelectedAddId('');
-          }}
-        >
-          <label className="session-current__add-label" htmlFor="session-add-pbi">
-            <span>セッションに PBI を追加</span>
-            <select
-              id="session-add-pbi"
-              className="session-current__select"
-              value={selectedAddId}
-              onChange={(event) => setSelectedAddId(event.target.value)}
+        <>
+          {onSprintSearch && (
+            <form
+              className="session-current__add"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!sprintInput.trim()) return;
+                onSprintSearch(sprintInput.trim());
+              }}
+              style={{ marginBottom: '1rem' }}
             >
-              <option value="">PBI を選択...</option>
-              {addable.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} ({item.storyPoint ?? '未設定'}pt)
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            className="session-button session-button--primary"
-            type="submit"
-            disabled={!selectedAddId || disabled || Boolean(isAdding)}
-          >
-            {isAdding ? '追加中…' : '追加する'}
-          </button>
-        </form>
+              <label className="session-current__add-label" htmlFor="session-sprint-search">
+                <span>スプリントで検索</span>
+                <small style={{ color: '#666', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>
+                  ※ スプリントを指定してPBIを検索してください
+                </small>
+                <input
+                  id="session-sprint-search"
+                  type="text"
+                  className="session-current__select"
+                  placeholder="例: Sprint 15"
+                  value={sprintInput}
+                  onChange={(event) => setSprintInput(event.target.value)}
+                  disabled={disabled || isSearching}
+                />
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="session-button session-button--primary"
+                  type="submit"
+                  disabled={!sprintInput.trim() || disabled || isSearching}
+                >
+                  {isSearching ? '検索中…' : '検索'}
+                </button>
+                {sprintInput && (
+                  <button
+                    className="session-button session-button--ghost"
+                    type="button"
+                    onClick={() => {
+                      setSprintInput('');
+                      onSprintSearch('');
+                    }}
+                    disabled={disabled || isSearching}
+                  >
+                    クリア
+                  </button>
+                )}
+              </div>
+            </form>
+          )}
+          
+          {shouldShowPbiSelect && (
+            <form
+              className="session-current__add"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!selectedAddId) return;
+                onAdd(selectedAddId);
+                setSelectedAddId('');
+              }}
+            >
+              <label className="session-current__add-label" htmlFor="session-add-pbi">
+                <span>セッションに PBI を追加</span>
+                <select
+                  id="session-add-pbi"
+                  className="session-current__select"
+                  value={selectedAddId}
+                  onChange={(event) => setSelectedAddId(event.target.value)}
+                >
+                  <option value="">PBI を選択...</option>
+                  {addable.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title} ({item.storyPoint ?? '未設定'}pt)
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="session-button session-button--primary"
+                type="submit"
+                disabled={!selectedAddId || disabled || Boolean(isAdding)}
+              >
+                {isAdding ? '追加中…' : '追加する'}
+              </button>
+            </form>
+          )}
+        </>
       )}
 
       {errorMessage && (

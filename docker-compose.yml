@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NOTION_TOKEN=${NOTION_TOKEN}
+      - NOTION_PBI_DB_ID=${NOTION_PBI_DB_ID}
+      - NOTION_STATUS_PROPERTY=${NOTION_STATUS_PROPERTY:-Status}
+      - NOTION_STORY_POINT_PROPERTY=${NOTION_STORY_POINT_PROPERTY:-StoryPoint}
+      - NOTION_TITLE_PROPERTY=${NOTION_TITLE_PROPERTY:-Name}
+      - NOTION_LAST_ESTIMATED_AT_PROPERTY=${NOTION_LAST_ESTIMATED_AT_PROPERTY:-LastEstimatedAt}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - firepoker-network
+
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - '--save'
+      - ''
+      - '--appendonly'
+      - 'no'
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - firepoker-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
+
+networks:
+  firepoker-network:
+    driver: bridge

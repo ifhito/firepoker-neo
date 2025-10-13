@@ -1,0 +1,58 @@
+name: Lead Time Metrics (Every 10 minutes)
+
+on:
+  # 手動実行を許可
+  workflow_dispatch:
+  # 10分ごとに実行 (cron形式: 分 時 日 月 曜日)
+  schedule:
+    - cron: '*/10 * * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  leadtime-metrics:
+    name: Calculate Lead Time Metrics
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    
+    steps:
+      - name: Get time range for last 10 minutes
+        shell: bash
+        run: |
+          # 現在時刻と10分前の時刻を取得
+          end_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          start_time=$(date -u -d '10 minutes ago' +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # GitHub Actions環境変数に設定
+          echo "time_range=$start_time..$end_time"
+          echo "time_range=$start_time..$end_time" >> "$GITHUB_ENV"
+          echo "start_time=$start_time" >> "$GITHUB_ENV"
+          echo "end_time=$end_time" >> "$GITHUB_ENV"
+
+      - name: Run issue-metrics tool
+        uses: github/issue-metrics@v3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # FirePokerリポジトリのPRのリードタイムを計測（作成からマージまで）
+          SEARCH_QUERY: 'repo:ifhito/firepoker-neo is:pr merged:${{ env.time_range }}'
+          # 表示内容のカスタマイズ
+          HIDE_AUTHOR: false
+          HIDE_TIME_TO_FIRST_RESPONSE: false
+          HIDE_TIME_TO_CLOSE: false
+          HIDE_TIME_TO_ANSWER: true
+          HIDE_LABEL_METRICS: true
+          REPORT_TITLE: 'FirePoker Lead Time Metrics - ${{ env.start_time }} to ${{ env.end_time }}'
+
+      - name: Create issue with metrics
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: '📊 FirePoker Lead Time Report - ${{ env.start_time }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          content-filepath: ./issue_metrics.md
+          labels: |
+            metrics
+            leadtime
+            automated

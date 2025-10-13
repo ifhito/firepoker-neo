@@ -6,6 +6,7 @@ import { toErrorResponse } from '@/server/http/error';
 const querySchema = z.object({
   status: z.string().optional(),
   search: z.string().optional(),
+  sprint: z.string().optional(),
 });
 
 export async function GET(request: Request) {
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
     const parsed = querySchema.parse({
       status: searchParams.get('status') ?? undefined,
       search: searchParams.get('search') ?? undefined,
+      sprint: searchParams.get('sprint') ?? undefined,
     });
     const response = await listPbis(parsed);
     return NextResponse.json(response);
