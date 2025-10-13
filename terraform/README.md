@@ -379,6 +379,35 @@ terraform destroy -var-file="prod.tfvars"
    - CloudWatch Logsで異常を監視
    - AWS CloudTrailで操作履歴を記録
 
+### Zscaler IPホワイトリスト
+
+Zscalerを使用している場合、`enable_zscaler_ips = true`に設定することで、Zscalerの公開IPアドレスが自動的にALBセキュリティグループに追加されます。
+
+```hcl
+# dev.tfvars または prod.tfvars
+enable_zscaler_ips = true
+
+# 都市でフィルタリング（推奨）
+# 東京のみの場合
+zscaler_city_filter = ["Tokyo"]
+
+# 東京と大阪の場合
+# zscaler_city_filter = ["Tokyo", "Osaka"]
+
+# 全世界の場合（非推奨：ルール数が膨大になります）
+# zscaler_city_filter = []
+
+allowed_cidr_blocks = [
+  "YOUR_OFFICE_IP/32",  # オフィスの固定IP
+]
+```
+
+**注意事項**:
+- Zscaler IPリストは公式API（`https://config.zscaler.com/api/zscaler.net/cenr/json`）から自動取得されます
+- **都市フィルタの使用を強く推奨** - 全世界のIPを含めると数百件になります
+- 東京の場合: `zscaler_city_filter = ["Tokyo"]` で約10-20個のIP範囲に絞られます
+- リストは定期的に更新されるため、`terraform apply`実行時に最新のIPが反映されます
+
 ## 💰 コスト見積もり（最小構成）
 
 ### 開発環境 (1タスク、最小リソース)

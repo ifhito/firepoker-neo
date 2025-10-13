@@ -1,4 +1,48 @@
 # ============================================
+# Data Sources
+# ============================================
+
+# Zscaler公開IPリストの取得
+# https://config.zscaler.com/api/zscaler.net/cenr/json
+data "http" "zscaler_ips" {
+  url = "https://config.zscaler.com/api/zscaler.net/cenr/json"
+
+  request_headers = {
+    Accept = "application/json"
+  }
+}
+
+locals {
+  # ZscalerのJSONレスポンスからIPアドレスを抽出
+  zscaler_raw = jsondecode(data.http.zscaler_ips.response_body)
+  
+  # zscaler.netキーの下にある全データを取得
+  zscaler_data = try(local.zscaler_raw["zscaler.net"], {})
+  
+  # 都市フィルタが指定されているかチェック
+  has_city_filter = length(var.zscaler_city_filter) > 0
+  
+  # すべてのZscaler IPアドレスのCIDR範囲を抽出（都市フィルタ適用、IPv4のみ）
+  zscaler_ips = flatten([
+    for continent_key, continent_data in local.zscaler_data : [
+      for city_key, city_ranges in continent_data : [
+        for range_obj in city_ranges : range_obj.range
+        # 都市フィルタが指定されている場合は、都市名でフィルタリング
+        if (!local.has_city_filter || anytrue([
+          for filter in var.zscaler_city_filter : strcontains(city_key, filter)
+        ])) && !strcontains(range_obj.range, ":")  # IPv6アドレス（":"を含む）を除外
+      ]
+    ]
+  ])
+  
+  # ユーザー指定のCIDRブロックとZscaler IPsを結合
+  all_allowed_cidrs = concat(
+    var.allowed_cidr_blocks,
+    var.enable_zscaler_ips ? local.zscaler_ips : []
+  )
+}
+
+# ============================================
 # VPC and Network Configuration (Minimal)
 # ============================================
 
@@ -72,7 +116,7 @@ resource "aws_security_group" "alb" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
+    cidr_blocks = local.all_allowed_cidrs
   }
 
   ingress {
@@ -80,7 +124,7 @@ resource "aws_security_group" "alb" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
+    cidr_blocks = local.all_allowed_cidrs
   }
 
   egress {

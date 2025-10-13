@@ -16,6 +16,15 @@ allowed_cidr_blocks = [
   "YOUR_VPN_IP/32",
 ]
 
+# Zscaler IP Whitelist
+# Set to true to automatically include Zscaler public IPs
+enable_zscaler_ips = true
+
+# Filter Zscaler IPs by city (optional)
+# Example: ["Tokyo"] for Tokyo only, ["Tokyo", "Osaka"] for multiple cities
+# Leave empty [] to include all cities
+zscaler_city_filter = ["Tokyo"]
+
 # ECS Configuration
 ecs_desired_count = 2  # Increased for production
 ecs_app_cpu       = 512

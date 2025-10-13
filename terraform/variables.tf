@@ -123,3 +123,15 @@ variable "allowed_cidr_blocks" {
   type        = list(string)
   default     = ["0.0.0.0/0"] # Allow all by default, override in tfvars
 }
+
+variable "enable_zscaler_ips" {
+  description = "Enable automatic inclusion of Zscaler public IP addresses"
+  type        = bool
+  default     = false
+}
+
+variable "zscaler_city_filter" {
+  description = "Filter Zscaler IPs by city name (e.g., 'Tokyo', 'Osaka'). Empty list means all cities."
+  type        = list(string)
+  default     = []
+}
