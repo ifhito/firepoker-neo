@@ -5,3 +5,10 @@ out
 .env*
 .DS_Store
 pnpm-lock.yaml
+
+# Terraform
+*.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
