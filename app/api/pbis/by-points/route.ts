@@ -5,14 +5,16 @@ import { toErrorResponse } from '@/server/http/error';
 
 const querySchema = z.object({
   points: z.string().min(1), // カンマ区切りのポイント (例: "2,3,5")
+  sprint: z.string().min(1).optional(),
 });
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const pointsParam = searchParams.get('points');
+    const sprintParam = searchParams.get('sprint');
     
-    console.log('[API /api/pbis/by-points] Request received:', { pointsParam });
+    console.log('[API /api/pbis/by-points] Request received:', { pointsParam, sprintParam });
     
     if (!pointsParam) {
       return NextResponse.json(
@@ -21,7 +23,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const { points } = querySchema.parse({ points: pointsParam });
+    const { points, sprint } = querySchema.parse({
+      points: pointsParam,
+      sprint: sprintParam ?? undefined,
+    });
     
     // カンマ区切りの文字列を数値配列に変換
     const pointValues = points
@@ -31,7 +36,7 @@ export async function GET(request: Request) {
       .map(p => parseInt(p, 10))
       .filter(p => !isNaN(p));
 
-    console.log('[API /api/pbis/by-points] Parsed points:', pointValues);
+    console.log('[API /api/pbis/by-points] Parsed points:', pointValues, 'sprint:', sprint ?? null);
 
     if (pointValues.length === 0) {
       return NextResponse.json(
@@ -40,7 +45,10 @@ export async function GET(request: Request) {
       );
     }
 
-    const response = await listPbisByStoryPoints(pointValues);
+    const response = await listPbisByStoryPoints(
+      pointValues,
+      sprint ? { sprint } : undefined,
+    );
     console.log('[API /api/pbis/by-points] Found PBIs:', response.items.length);
     
     return NextResponse.json(response);

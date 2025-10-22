@@ -292,6 +292,8 @@ export function SessionDetailClient({
       setActivePbiDetail(match);
     }
 
+    const referenceSprint = match?.sprint ?? activePbiDetail?.sprint ?? null;
+
     let cancelled = false;
     setIsFetchingSimilar(true);
     const fetchSimilar = async () => {
@@ -311,7 +313,12 @@ export function SessionDetailClient({
           }
         } else {
           const pointsParam = uniquePoints.join(',');
-          const url = `/api/pbis/by-points?points=${encodeURIComponent(pointsParam)}`;
+          const params = new URLSearchParams();
+          params.set('points', pointsParam);
+          if (referenceSprint) {
+            params.set('sprint', referenceSprint);
+          }
+          const url = `/api/pbis/by-points?${params.toString()}`;
           const response = await fetch(url);
           if (!response.ok) {
             throw new Error('類似 PBI を取得できませんでした。');

@@ -2,7 +2,7 @@ import type { ProductBacklogItem } from '@/domain/pbi';
 import '@/mocks/pbis';
 import { HttpError } from '@/server/http/error';
 import { extractPages, mapPageToProductBacklogItem } from './mapper';
-import { notionEnv, notionPropertyConfig } from './config';
+import { notionEnv, notionPropertyConfig, notionFilterConfig } from './config';
 
 const {
   title: TITLE_PROPERTY,
@@ -12,7 +12,10 @@ const {
   epic: EPIC_PROPERTY,
   sprint: SPRINT_PROPERTY,
   lastEstimatedAt: LAST_ESTIMATED_AT_PROPERTY,
+  ticketType: TICKET_TYPE_PROPERTY,
 } = notionPropertyConfig;
+
+const { ticketTypeValue: TICKET_TYPE_VALUE, defaultStatusFilter: DEFAULT_STATUS_FILTER } = notionFilterConfig;
 
 const propertyOptions = {
   ...(TITLE_PROPERTY ? { titleProperty: TITLE_PROPERTY } : {}),
@@ -22,11 +25,13 @@ const propertyOptions = {
   ...(EPIC_PROPERTY ? { epicProperty: EPIC_PROPERTY } : {}),
   ...(SPRINT_PROPERTY ? { sprintProperty: SPRINT_PROPERTY } : {}),
   ...(LAST_ESTIMATED_AT_PROPERTY ? { lastEstimatedAtProperty: LAST_ESTIMATED_AT_PROPERTY } : {}),
+  ...(TICKET_TYPE_PROPERTY ? { ticketTypeProperty: TICKET_TYPE_PROPERTY } : {}),
 };
 
 const ALLOWED_SIMILAR_STATUSES = ['Backlog', 'Ready', 'InProgress', 'Done', 'Released'];
 const NOTION_API_BASE = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
+const SPRINT_LOOKBACK_RANGE = 2;
 
 const formatNotionId = (id: string) => {
   const compact = id.replace(/-/g, '');
@@ -36,11 +41,85 @@ const formatNotionId = (id: string) => {
   return [compact.slice(0, 8), compact.slice(8, 12), compact.slice(12, 16), compact.slice(16, 20), compact.slice(20)].join('-');
 };
 
+const extractSprintNumber = (value: string | null | undefined): number | null => {
+  if (!value) {
+    return null;
+  }
+  const matches = value.match(/(\d+)/g);
+  if (!matches || matches.length === 0) {
+    return null;
+  }
+  const last = matches[matches.length - 1];
+  const parsed = Number.parseInt(last, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const padWithReference = (value: number, referenceDigits: string) => {
+  if (referenceDigits.length === 0) {
+    return `${value}`;
+  }
+  return `${value}`.padStart(referenceDigits.length, '0');
+};
+
+const buildSprintLabelRange = (value: string | null | undefined, range = SPRINT_LOOKBACK_RANGE): string[] | null => {
+  if (!value) {
+    return null;
+  }
+  const match = value.match(/^(.*?)(\d+)(.*)$/);
+  if (!match) {
+    const base = extractSprintNumber(value);
+    if (base === null) {
+      return null;
+    }
+    const labels: string[] = [];
+    for (let diff = 0; diff <= range; diff += 1) {
+      const candidate = base - diff;
+      if (candidate < 0) {
+        break;
+      }
+      labels.push(`${candidate}`);
+    }
+    return labels;
+  }
+
+  const [, prefix, digits, suffix] = match;
+  const base = Number.parseInt(digits, 10);
+  if (Number.isNaN(base)) {
+    return null;
+  }
+
+  const labels: string[] = [];
+  for (let diff = 0; diff <= range; diff += 1) {
+    const candidate = base - diff;
+    if (candidate < 0) {
+      break;
+    }
+    labels.push(`${prefix}${padWithReference(candidate, digits)}${suffix}`);
+  }
+  return labels;
+};
+
+const isWithinSprintRange = (
+  candidate: string | null | undefined,
+  reference: string | null | undefined,
+  range = SPRINT_LOOKBACK_RANGE,
+) => {
+  const referenceNumber = extractSprintNumber(reference);
+  if (referenceNumber === null) {
+    return true;
+  }
+  const candidateNumber = extractSprintNumber(candidate);
+  if (candidateNumber === null) {
+    return false;
+  }
+  return candidateNumber <= referenceNumber && candidateNumber >= referenceNumber - range;
+};
+
 export interface NotionClient {
   listPBIs(params: { status?: string; search?: string; sprint?: string }): Promise<ProductBacklogItem[]>;
   findPBI(id: string): Promise<ProductBacklogItem | null>;
   listSimilarPbis(pbiId: string): Promise<ProductBacklogItem[]>;
-  listPbisByStoryPoints(points: number[]): Promise<ProductBacklogItem[]>;
+  listPbisByStoryPoints(points: number[], options?: { sprint?: string | null }): Promise<ProductBacklogItem[]>;
   updateStoryPoint(pbiId: string, point: number, memo?: string | null): Promise<void>;
 }
 
@@ -71,6 +150,7 @@ class MockNotionClient implements NotionClient {
     }
 
     const allowedStatuses = new Set(ALLOWED_SIMILAR_STATUSES);
+    const referenceSprint = current.sprint ?? null;
 
     return this.dataset
       .filter(
@@ -78,7 +158,8 @@ class MockNotionClient implements NotionClient {
           item.id !== pbiId &&
           item.storyPoint === current.storyPoint &&
           item.lastEstimatedAt &&
-          allowedStatuses.has(item.status),
+          allowedStatuses.has(item.status) &&
+          isWithinSprintRange(item.sprint, referenceSprint),
       )
       .sort((a, b) => {
         const timeA = a.lastEstimatedAt ? Date.parse(a.lastEstimatedAt) : 0;
@@ -88,8 +169,9 @@ class MockNotionClient implements NotionClient {
       .slice(0, 10);
   }
 
-  async listPbisByStoryPoints(points: number[]) {
+  async listPbisByStoryPoints(points: number[], options?: { sprint?: string | null }) {
     const allowedStatuses = new Set(ALLOWED_SIMILAR_STATUSES);
+    const referenceSprint = options?.sprint ?? null;
     
     const allItems = this.dataset
       .filter(
@@ -97,7 +179,8 @@ class MockNotionClient implements NotionClient {
           item.storyPoint !== null &&
           points.includes(item.storyPoint) &&
           item.lastEstimatedAt &&
-          allowedStatuses.has(item.status),
+          allowedStatuses.has(item.status) &&
+          isWithinSprintRange(item.sprint, referenceSprint),
       )
       .sort((a, b) => {
         const timeA = a.lastEstimatedAt ? Date.parse(a.lastEstimatedAt) : 0;
@@ -189,22 +272,55 @@ class RealNotionClient implements NotionClient {
 
   async listPBIs(params: { status?: string; search?: string; sprint?: string }) {
     const schema = await this.loadSchema();
+    const baseFilters: any[] = [];
     const filterClauses: any[] = [];
-    if (params.status && STATUS_PROPERTY) {
-      const statusType = schema[STATUS_PROPERTY];
-      if (statusType === 'select' || statusType === 'status') {
-        const key = statusType === 'status' ? 'status' : 'select';
-        filterClauses.push({
-          property: STATUS_PROPERTY,
-          [key]: { equals: params.status },
+
+    if (TICKET_TYPE_PROPERTY && TICKET_TYPE_VALUE) {
+      const ticketTypeType = schema[TICKET_TYPE_PROPERTY];
+      if (ticketTypeType === 'select') {
+        baseFilters.push({
+          property: TICKET_TYPE_PROPERTY,
+          select: { equals: TICKET_TYPE_VALUE },
         });
-      } else if (statusType === 'multi_select') {
-        filterClauses.push({
-          property: STATUS_PROPERTY,
-          multi_select: { contains: params.status },
+      } else if (ticketTypeType === 'multi_select') {
+        baseFilters.push({
+          property: TICKET_TYPE_PROPERTY,
+          multi_select: { contains: TICKET_TYPE_VALUE },
         });
       }
     }
+
+    if (STATUS_PROPERTY) {
+      const statusType = schema[STATUS_PROPERTY];
+      if (params.status) {
+        if (statusType === 'select' || statusType === 'status') {
+          const key = statusType === 'status' ? 'status' : 'select';
+          filterClauses.push({
+            property: STATUS_PROPERTY,
+            [key]: { equals: params.status },
+          });
+        } else if (statusType === 'multi_select') {
+          filterClauses.push({
+            property: STATUS_PROPERTY,
+            multi_select: { contains: params.status },
+          });
+        }
+      } else if (DEFAULT_STATUS_FILTER) {
+        if (statusType === 'select' || statusType === 'status') {
+          const key = statusType === 'status' ? 'status' : 'select';
+          baseFilters.push({
+            property: STATUS_PROPERTY,
+            [key]: { equals: DEFAULT_STATUS_FILTER },
+          });
+        } else if (statusType === 'multi_select') {
+          baseFilters.push({
+            property: STATUS_PROPERTY,
+            multi_select: { contains: DEFAULT_STATUS_FILTER },
+          });
+        }
+      }
+    }
+
     if (params.search && TITLE_PROPERTY) {
       filterClauses.push({
         property: TITLE_PROPERTY,
@@ -239,10 +355,12 @@ class RealNotionClient implements NotionClient {
       ];
     }
 
-    if (filterClauses.length === 1) {
-      body.filter = filterClauses[0];
-    } else if (filterClauses.length > 1) {
-      body.filter = { and: filterClauses };
+    const combinedFilters = [...baseFilters, ...filterClauses];
+
+    if (combinedFilters.length === 1) {
+      body.filter = combinedFilters[0];
+    } else if (combinedFilters.length > 1) {
+      body.filter = { and: combinedFilters };
     }
 
     const response = await this.notionFetch(`/databases/${formatNotionId(this.pbiDatabaseId)}/query`, {
@@ -293,8 +411,45 @@ class RealNotionClient implements NotionClient {
 
     const filters: any[] = [];
 
+    if (TICKET_TYPE_PROPERTY && TICKET_TYPE_VALUE) {
+      const ticketTypeType = schema[TICKET_TYPE_PROPERTY];
+      if (ticketTypeType === 'select') {
+        filters.push({
+          property: TICKET_TYPE_PROPERTY,
+          select: { equals: TICKET_TYPE_VALUE },
+        });
+      } else if (ticketTypeType === 'multi_select') {
+        filters.push({
+          property: TICKET_TYPE_PROPERTY,
+          multi_select: { contains: TICKET_TYPE_VALUE },
+        });
+      }
+    }
+
     if (source.storyPoint != null && STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
       filters.push({ property: STORY_POINT_PROPERTY, number: { equals: source.storyPoint } });
+    }
+
+    if (SPRINT_PROPERTY && source.sprint) {
+      const sprintType = schema[SPRINT_PROPERTY];
+      const sprintRange = buildSprintLabelRange(source.sprint);
+      if (sprintRange && sprintRange.length > 0) {
+        if (sprintType === 'select') {
+          filters.push({
+            or: sprintRange.map((sprint) => ({
+              property: SPRINT_PROPERTY,
+              select: { equals: sprint },
+            })),
+          });
+        } else if (sprintType === 'multi_select') {
+          filters.push({
+            or: sprintRange.map((sprint) => ({
+              property: SPRINT_PROPERTY,
+              multi_select: { contains: sprint },
+            })),
+          });
+        }
+      }
     }
 
     if (STATUS_PROPERTY && schema[STATUS_PROPERTY]) {
@@ -331,10 +486,12 @@ class RealNotionClient implements NotionClient {
       }),
     }));
 
-    return extractPages(response as any, propertyOptions).filter((item: ProductBacklogItem) => item.id !== pbiId);
+    return extractPages(response as any, propertyOptions)
+      .filter((item: ProductBacklogItem) => item.id !== pbiId)
+      .filter((item: ProductBacklogItem) => isWithinSprintRange(item.sprint, source.sprint));
   }
 
-  async listPbisByStoryPoints(points: number[]) {
+  async listPbisByStoryPoints(points: number[], options?: { sprint?: string | null }) {
     if (points.length === 0) {
       return [];
     }
@@ -349,24 +506,69 @@ class RealNotionClient implements NotionClient {
         ]
       : undefined;
 
-    // 複数のポイントに対応するフィルター（Statusに関わらず全て取得）
-    let filter: any = undefined;
-    
-    if (STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
-      if (points.length === 1) {
-        filter = { property: STORY_POINT_PROPERTY, number: { equals: points[0] } };
-      } else {
-        filter = {
-          or: points.map(point => ({
-            property: STORY_POINT_PROPERTY,
-            number: { equals: point }
-          }))
-        };
+    // 複数のポイントに対応するフィルター
+    const filters: any[] = [];
+    const referenceSprint = options?.sprint ?? null;
+
+    if (TICKET_TYPE_PROPERTY && TICKET_TYPE_VALUE) {
+      const ticketTypeType = schema[TICKET_TYPE_PROPERTY];
+      if (ticketTypeType === 'select') {
+        filters.push({
+          property: TICKET_TYPE_PROPERTY,
+          select: { equals: TICKET_TYPE_VALUE },
+        });
+      } else if (ticketTypeType === 'multi_select') {
+        filters.push({
+          property: TICKET_TYPE_PROPERTY,
+          multi_select: { contains: TICKET_TYPE_VALUE },
+        });
       }
     }
 
+    if (STORY_POINT_PROPERTY && schema[STORY_POINT_PROPERTY] === 'number') {
+      if (points.length === 1) {
+        filters.push({ property: STORY_POINT_PROPERTY, number: { equals: points[0] } });
+      } else {
+        filters.push({
+          or: points.map((point) => ({
+            property: STORY_POINT_PROPERTY,
+            number: { equals: point },
+          })),
+        });
+      }
+    }
+
+    if (referenceSprint && SPRINT_PROPERTY && schema[SPRINT_PROPERTY]) {
+      const sprintRange = buildSprintLabelRange(referenceSprint);
+      if (sprintRange && sprintRange.length > 0) {
+        const sprintType = schema[SPRINT_PROPERTY];
+        if (sprintType === 'select') {
+          filters.push({
+            or: sprintRange.map((sprint) => ({
+              property: SPRINT_PROPERTY,
+              select: { equals: sprint },
+            })),
+          });
+        } else if (sprintType === 'multi_select') {
+          filters.push({
+            or: sprintRange.map((sprint) => ({
+              property: SPRINT_PROPERTY,
+              multi_select: { contains: sprint },
+            })),
+          });
+        }
+      }
+    }
+
+    let filter: any = undefined;
+    if (filters.length === 1) {
+      filter = filters[0];
+    } else if (filters.length > 1) {
+      filter = { and: filters };
+    }
+
     const query = {
-      filter,
+      ...(filter ? { filter } : {}),
       ...(sorts ? { sorts } : {}),
       page_size: 100,
     };
@@ -376,7 +578,9 @@ class RealNotionClient implements NotionClient {
       body: JSON.stringify(query),
     }));
 
-    const allItems = extractPages(response as any, propertyOptions);
+    const allItems = extractPages(response as any, propertyOptions).filter((item) =>
+      isWithinSprintRange(item.sprint, referenceSprint),
+    );
     
     // 各ポイントごとに最大5件に絞る
     const grouped = new Map<number, ProductBacklogItem[]>();

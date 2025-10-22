@@ -11,6 +11,9 @@ const envSchema = z.object({
   NOTION_PBI_EPIC_PROPERTY: z.string().min(1).optional(),
   NOTION_PBI_SPRINT_PROPERTY: z.string().min(1).optional(),
   NOTION_PBI_LASTESTIMATED_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_TICKETTYPE_PROPERTY: z.string().min(1).optional(),
+  NOTION_PBI_TICKETTYPE_VALUE: z.string().min(1).optional(),
+  NOTION_PBI_DEFAULT_STATUS_FILTER: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -32,6 +35,9 @@ export const notionEnv = parsed.success
       NOTION_PBI_EPIC_PROPERTY: undefined,
       NOTION_PBI_SPRINT_PROPERTY: undefined,
       NOTION_PBI_LASTESTIMATED_PROPERTY: undefined,
+      NOTION_PBI_TICKETTYPE_PROPERTY: undefined,
+      NOTION_PBI_TICKETTYPE_VALUE: undefined,
+      NOTION_PBI_DEFAULT_STATUS_FILTER: undefined,
     };
 
 console.log('[Notion Config] Environment variables loaded:', {
@@ -59,4 +65,10 @@ export const notionPropertyConfig = {
   epic: notionEnv.NOTION_PBI_EPIC_PROPERTY ?? 'Epic',
   sprint: notionEnv.NOTION_PBI_SPRINT_PROPERTY ?? 'Sprint',
   lastEstimatedAt: notionEnv.NOTION_PBI_LASTESTIMATED_PROPERTY ?? 'LastEstimatedAt',
+  ticketType: notionEnv.NOTION_PBI_TICKETTYPE_PROPERTY ?? 'TicketType',
+};
+
+export const notionFilterConfig = {
+  ticketTypeValue: notionEnv.NOTION_PBI_TICKETTYPE_VALUE ?? null,
+  defaultStatusFilter: notionEnv.NOTION_PBI_DEFAULT_STATUS_FILTER ?? null,
 };

@@ -18,6 +18,11 @@
 - [x] ストーリーポイント更新 & 履歴登録処理 (`POST /api/sessions/{id}/finalize`)
 - [x] Status型プロパティ対応
 - [x] ストーリーポイント未設定PBIのフィルタリング
+- [x] チケット種別/ステータスがPBIのページ限定取得
+- [x] ポイント数値プロパティへのストーリーポイント更新対応
+- [x] Status型プロパティからの状態読み取り改善
+- [x] 類似PBI参照結果を直近2スプリント以内に制限
+- [x] ポイント履歴参照APIを直近2スプリント以内に制限
 
 ## 2. フロントエンド (Next.js App Router, Feature-based)
 - [x] フォルダ構成 (feature-based) の scaffold：`app/page`, `app/intake`, `app/(authenticated)/session/[sessionId]`

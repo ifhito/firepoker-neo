@@ -22,6 +22,9 @@ const pickSelect = (page: PageObjectResponse, propertyName: string) => {
   if (property?.type === 'select') {
     return property.select?.name ?? null;
   }
+  if (property?.type === 'status') {
+    return property.status?.name ?? null;
+  }
   return null;
 };
 
