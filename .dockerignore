@@ -12,7 +12,7 @@ coverage
 # Misc
 .DS_Store
 *.pem
-.env*.local
+.env.local
 
 # Debug
 npm-debug.log*

@@ -277,10 +277,11 @@ class RealNotionClient implements NotionClient {
 
     if (TICKET_TYPE_PROPERTY && TICKET_TYPE_VALUE) {
       const ticketTypeType = schema[TICKET_TYPE_PROPERTY];
-      if (ticketTypeType === 'select') {
+      if (ticketTypeType === 'select' || ticketTypeType === 'status') {
+        const key = ticketTypeType === 'status' ? 'status' : 'select';
         baseFilters.push({
           property: TICKET_TYPE_PROPERTY,
-          select: { equals: TICKET_TYPE_VALUE },
+          [key]: { equals: TICKET_TYPE_VALUE },
         });
       } else if (ticketTypeType === 'multi_select') {
         baseFilters.push({
@@ -413,10 +414,11 @@ class RealNotionClient implements NotionClient {
 
     if (TICKET_TYPE_PROPERTY && TICKET_TYPE_VALUE) {
       const ticketTypeType = schema[TICKET_TYPE_PROPERTY];
-      if (ticketTypeType === 'select') {
+      if (ticketTypeType === 'select' || ticketTypeType === 'status') {
+        const key = ticketTypeType === 'status' ? 'status' : 'select';
         filters.push({
           property: TICKET_TYPE_PROPERTY,
-          select: { equals: TICKET_TYPE_VALUE },
+          [key]: { equals: TICKET_TYPE_VALUE },
         });
       } else if (ticketTypeType === 'multi_select') {
         filters.push({
@@ -512,10 +514,11 @@ class RealNotionClient implements NotionClient {
 
     if (TICKET_TYPE_PROPERTY && TICKET_TYPE_VALUE) {
       const ticketTypeType = schema[TICKET_TYPE_PROPERTY];
-      if (ticketTypeType === 'select') {
+      if (ticketTypeType === 'select' || ticketTypeType === 'status') {
+        const key = ticketTypeType === 'status' ? 'status' : 'select';
         filters.push({
           property: TICKET_TYPE_PROPERTY,
-          select: { equals: TICKET_TYPE_VALUE },
+          [key]: { equals: TICKET_TYPE_VALUE },
         });
       } else if (ticketTypeType === 'multi_select') {
         filters.push({

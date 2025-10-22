@@ -171,3 +171,14 @@ Internet → ALB → ECS Task (App + Redis) → Notion API
 3. 表示された参加 URL を共有し、参加者は `/session/{id}/join?token=...` から表示名を登録して入室します。
 4. `/session/{id}` でリアルタイム投票・リセット・確定を行います。
 5. 確定すると Notion の PBI にストーリーポイントが書き戻されます。
+
+
+<!-- # めも
+# NOTION_PBI_TITLE_PROPERTY="アイテム名"         # (任意) タイトル列名 -> アイテム名
+# NOTION_PBI_STATUS_PROPERTY="ステータス"       # (任意) ステータス列名 -> ステータス
+# NOTION_PBI_STORYPOINT_PROPERTY="ポイント"     # (任意) ストーリーポイント列名 -> ポイント
+# NOTION_PBI_LASTESTIMATED_PROPERTY="最終見積もり日時" # (任意) 最終見積り日時列名
+# NOTION_PBI_SPRINT_PROPERTY="Sprint" # Sprint
+# NOTION_PBI_TICKETTYPE_PROPERTY="チケット種別"
+# NOTION_PBI_TICKETTYPE_VALUE="PBI"
+# REDIS_URL=redis://localhost:6379 -->

@@ -30,7 +30,7 @@ describe('RealNotionClient (filters)', () => {
         properties: {
           ステータス: { type: 'status' },
           Sprint: { type: 'select' },
-          チケット種別: { type: 'select' },
+          チケット種別: { type: 'status' },
         },
       }),
     };
@@ -63,7 +63,7 @@ describe('RealNotionClient (filters)', () => {
       expect.arrayContaining([
         {
           property: 'チケット種別',
-          select: { equals: 'PBI' },
+          status: { equals: 'PBI' },
         },
         {
           property: 'ステータス',
@@ -84,7 +84,7 @@ describe('RealNotionClient (filters)', () => {
         properties: {
           ステータス: { type: 'status' },
           Sprint: { type: 'select' },
-          チケット種別: { type: 'select' },
+          チケット種別: { type: 'status' },
         },
       }),
     };
@@ -112,7 +112,7 @@ describe('RealNotionClient (filters)', () => {
       expect.arrayContaining([
         {
           property: 'チケット種別',
-          select: { equals: 'PBI' },
+          status: { equals: 'PBI' },
         },
         {
           property: 'ステータス',
@@ -142,8 +142,8 @@ describe('RealNotionClient (filters)', () => {
             number: 3,
           },
           チケット種別: {
-            type: 'select',
-            select: { name: 'PBI' },
+            type: 'status',
+            status: { name: 'PBI' },
           },
           Sprint: {
             type: 'select',
@@ -160,7 +160,7 @@ describe('RealNotionClient (filters)', () => {
         properties: {
           ステータス: { type: 'status' },
           Sprint: { type: 'select' },
-          チケット種別: { type: 'select' },
+          チケット種別: { type: 'status' },
           ポイント: { type: 'number' },
           LastEstimatedAt: { type: 'date' },
         },
@@ -196,7 +196,7 @@ describe('RealNotionClient (filters)', () => {
       expect.arrayContaining([
         expect.objectContaining({
           property: 'チケット種別',
-          select: { equals: 'PBI' },
+          status: { equals: 'PBI' },
         }),
       ]),
     );
@@ -210,7 +210,7 @@ describe('RealNotionClient (filters)', () => {
         Title: { type: 'title', title: [] },
         ステータス: { type: 'status', status: { name: 'Done' } },
         ポイント: { type: 'number', number: 3 },
-        チケット種別: { type: 'select', select: { name: 'PBI' } },
+        チケット種別: { type: 'status', status: { name: 'PBI' } },
         Sprint: { type: 'select', select: { name: sprint } },
         LastEstimatedAt: { type: 'date', date: { start: '2024-03-01T00:00:00.000Z' } },
       },
@@ -226,7 +226,7 @@ describe('RealNotionClient (filters)', () => {
           Title: { type: 'title', title: [] },
           ステータス: { type: 'status', status: { name: 'Done' } },
           ポイント: { type: 'number', number: 3 },
-          チケット種別: { type: 'select', select: { name: 'PBI' } },
+          チケット種別: { type: 'status', status: { name: 'PBI' } },
           Sprint: { type: 'select', select: { name: '220' } },
         },
         url: 'https://www.notion.so/mock',
@@ -239,7 +239,7 @@ describe('RealNotionClient (filters)', () => {
         properties: {
           ステータス: { type: 'status' },
           Sprint: { type: 'select' },
-          チケット種別: { type: 'select' },
+          チケット種別: { type: 'status' },
           ポイント: { type: 'number' },
           LastEstimatedAt: { type: 'date' },
         },
