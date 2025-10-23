@@ -15,26 +15,26 @@ data "http" "zscaler_ips" {
 locals {
   # ZscalerのJSONレスポンスからIPアドレスを抽出
   zscaler_raw = jsondecode(data.http.zscaler_ips.response_body)
-  
+
   # zscaler.netキーの下にある全データを取得
   zscaler_data = try(local.zscaler_raw["zscaler.net"], {})
-  
+
   # 都市フィルタが指定されているかチェック
   has_city_filter = length(var.zscaler_city_filter) > 0
-  
+
   # すべてのZscaler IPアドレスのCIDR範囲を抽出（都市フィルタ適用、IPv4のみ）
   zscaler_ips = flatten([
     for continent_key, continent_data in local.zscaler_data : [
       for city_key, city_ranges in continent_data : [
         for range_obj in city_ranges : range_obj.range
         # 都市フィルタが指定されている場合は、都市名でフィルタリング
-        if (!local.has_city_filter || anytrue([
+        if(!local.has_city_filter || anytrue([
           for filter in var.zscaler_city_filter : strcontains(city_key, filter)
-        ])) && !strcontains(range_obj.range, ":")  # IPv6アドレス（":"を含む）を除外
+        ])) && !strcontains(range_obj.range, ":") # IPv6アドレス（":"を含む）を除外
       ]
     ]
   ])
-  
+
   # ユーザー指定のCIDRブロックとZscaler IPsを結合
   all_allowed_cidrs = concat(
     var.allowed_cidr_blocks,
@@ -271,9 +271,9 @@ resource "aws_ecr_lifecycle_policy" "main" {
         rulePriority = 1
         description  = "Keep last 10 images"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = {
           type = "expire"
@@ -284,15 +284,45 @@ resource "aws_ecr_lifecycle_policy" "main" {
 }
 
 # ============================================
-# CloudWatch Logs
+# S3 Logs Bucket
 # ============================================
 
-resource "aws_cloudwatch_log_group" "main" {
-  name              = "/ecs/${var.project_name}"
-  retention_in_days = 7
+resource "aws_s3_bucket" "logs" {
+  bucket_prefix = "${var.project_name}-${var.environment}-logs-"
 
   tags = {
     Name = "${var.project_name}-logs"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "logs" {
+  bucket                  = aws_s3_bucket.logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    id     = "expire-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 30
+    }
   }
 }
 
@@ -384,6 +414,37 @@ resource "aws_iam_role_policy" "ecs_secrets_access" {
   })
 }
 
+resource "aws_iam_role_policy" "ecs_logs_to_s3" {
+  name = "${var.project_name}-ecs-logs-to-s3"
+  role = aws_iam_role.ecs_task_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          aws_s3_bucket.logs.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:AbortMultipartUpload"
+        ]
+        Resource = [
+          "${aws_s3_bucket.logs.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
 # ECS Task Role (for application to access AWS services)
 resource "aws_iam_role" "ecs_task" {
   name = "${var.project_name}-ecs-task-role"
@@ -413,26 +474,8 @@ resource "aws_iam_role" "ecs_task" {
 resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-cluster"
 
-  setting {
-    name  = "containerInsights"
-    value = "enabled"
-  }
-
   tags = {
     Name = "${var.project_name}-cluster"
-  }
-}
-
-# ECS Cluster Capacity Providers
-resource "aws_ecs_cluster_capacity_providers" "main" {
-  cluster_name = aws_ecs_cluster.main.name
-
-  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
-
-  default_capacity_provider_strategy {
-    capacity_provider = "FARGATE"
-    weight            = 1
-    base              = 1
   }
 }
 
@@ -454,6 +497,32 @@ resource "aws_ecs_task_definition" "main" {
   }
 
   container_definitions = jsonencode([
+    {
+      name      = "log_router"
+      image     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:latest"
+      essential = true
+
+      firelensConfiguration = {
+        type = "fluentbit"
+        options = {
+          "enable-ecs-log-metadata" = "true"
+        }
+      }
+
+      logConfiguration = {
+        logDriver = "awsfirelens"
+        options = {
+          "Name"            = "s3"
+          "region"          = var.aws_region
+          "bucket"          = aws_s3_bucket.logs.bucket
+          "total_file_size" = "5m"
+          "upload_timeout"  = "60s"
+          "use_put_object"  = "true"
+          "store_dir"       = "/var/log/firelens"
+          "s3_key_format"   = "/${var.project_name}/${var.environment}/firelens/%Y/%m/%d/%H/%M/%S"
+        }
+      }
+    },
     {
       name      = "app"
       image     = var.container_image != "latest" ? var.container_image : "${aws_ecr_repository.main.repository_url}:latest"
@@ -495,11 +564,16 @@ resource "aws_ecs_task_definition" "main" {
       ]
 
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awsfirelens"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.main.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "app"
+          "Name"            = "s3"
+          "region"          = var.aws_region
+          "bucket"          = aws_s3_bucket.logs.bucket
+          "total_file_size" = "5m"
+          "upload_timeout"  = "60s"
+          "use_put_object"  = "true"
+          "store_dir"       = "/var/log/firelens"
+          "s3_key_format"   = "/${var.project_name}/${var.environment}/app/%Y/%m/%d/%H/%M/%S"
         }
       }
     },
@@ -526,11 +600,16 @@ resource "aws_ecs_task_definition" "main" {
       ]
 
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awsfirelens"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.main.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "redis"
+          "Name"            = "s3"
+          "region"          = var.aws_region
+          "bucket"          = aws_s3_bucket.logs.bucket
+          "total_file_size" = "5m"
+          "upload_timeout"  = "60s"
+          "use_put_object"  = "true"
+          "store_dir"       = "/var/log/firelens"
+          "s3_key_format"   = "/${var.project_name}/${var.environment}/redis/%Y/%m/%d/%H/%M/%S"
         }
       }
 

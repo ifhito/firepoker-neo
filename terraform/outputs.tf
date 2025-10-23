@@ -28,17 +28,17 @@ output "ecr_repository_url" {
   value       = aws_ecr_repository.main.repository_url
 }
 
-output "cloudwatch_log_group" {
-  description = "CloudWatch Log Group name"
-  value       = aws_cloudwatch_log_group.main.name
-}
-
 output "secrets_manager_arns" {
   description = "ARNs of Secrets Manager secrets"
   value = {
-    notion_token    = aws_secretsmanager_secret.notion_token.arn
+    notion_token     = aws_secretsmanager_secret.notion_token.arn
     notion_pbi_db_id = aws_secretsmanager_secret.notion_pbi_db_id.arn
   }
+}
+
+output "logs_bucket_name" {
+  description = "S3 bucket storing application and Redis logs"
+  value       = aws_s3_bucket.logs.bucket
 }
 
 output "task_execution_role_arn" {
