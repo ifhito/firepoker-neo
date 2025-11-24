@@ -1,0 +1,71 @@
+# Implementation Plan
+
+- [x] 1. サーバーレス基盤を Terraform で整備する
+- [x] 1.1 Lambda + API Gateway WebSocket スタックをモジュール化する
+  - Lambda 実行ロール、API Gateway v2 WebSocket、`$connect/$disconnect/$default` ルート、ステージ、`WS_CALLBACK_ENDPOINT` 出力を module 化し、serverless/ ディレクトリから参照できるようにする。
+  - ステージの `throttle_settings` と API Gateway 接続設定で 10 接続を越えないよう制限し、Terraform output に `ws_endpoint`/`ws_callback_endpoint` を追加する。
+  - _Requirements: Requirement 3, Requirement 4_
+- [x] 1.2 S3 + CloudFront による CSR 配信経路を作成する
+  - 静的サイトバケット、OAC、CloudFront ディストリビューション、ACM 証明書関連付けを構築し、`pnpm export:serverless` の成果物をデプロイできる権限とライフサイクルを定義する。
+  - CloudFront からのエラー／ログを分析できるようアクセスログとバージョン付きを設定し、`static_site_domain` を output 化する。
+  - _Requirements: Requirement 3, Requirement 2_
+- [x] 1.3 Secrets Manager と Session Access DynamoDB を Terraform に組み込む
+  - Notion トークンや DB ID を保持するシークレット、そして `session_access_table` (PK=sessionId, joinTokenHash, activeConnections, expiresAt) を module 化し、Lambda へ最小権限で参照させる。
+  - Outputs に `session_access_table_name` を追加し、CI/CD で JSON シークレットと Dynamo テーブル名を受け渡せるようにする。
+  - _Requirements: Requirement 3, Requirement 1_
+
+- [x] 2. SessionAccessValidator とデータ供給を実装する
+- [x] 2.1 DynamoDB 連携コンポーネントを作成する
+  - SessionAccessValidator が joinToken ハッシュ照合と activeConnections インクリメント/デクリメントを行えるよう、hash 化ユーティリティと Dynamo CRUD ラッパーを実装する。
+  - ハッシュは SHA-256 Base64 で保存し、`AccessDecision` には allowed / reason / sessionId を含める。
+  - _Requirements: Requirement 1, Requirement 4_
+- [x] 2.2 セッション作成・デモ投入時に joinToken ハッシュを登録する
+  - container 側のセッション作成シーケンスや `ensureDemoSession` から Dynamo テーブルへ joinToken ハッシュを書き込む経路を追加し、既存モック環境でも検証できるようにする。
+  - 既存セッション分のマイグレーション・CLI/スクリプトを用意し、Token と sessionId をまとめて登録する。
+  - _Requirements: Requirement 1_
+- [x] 2.3 エラー時の接続拒否と 10 接続上限ロジックを整理する
+  - Validator が `allowed=false` を返した際に理由コードを含めた `error` 応答を生成し、API Gateway 経由で 401 を返して即切断する制御をまとめる。
+  - 接続が 10 件に達した際は Dynamo と CloudWatch の値を同期させ、新規接続には待機やリトライ案内を返す。
+  - _Requirements: Requirement 1, Requirement 4_
+
+- [x] 3. WebSocket ハンドラを強化する
+- [x] 3.1 `$connect` / `$disconnect` を SessionAccessValidator に統合する
+  - `handleEvent` が `$connect` で validator を呼び出し、成功時のみ接続メタデータを CloudWatch に記録し、`$disconnect` で activeConnections を減算する。
+  - 失敗時は理由に応じ `error` イベントを返し、API Gateway Management API で切断する動線を実装する。
+  - _Requirements: Requirement 1, Requirement 4_
+- [x] 3.2 `listPbis` フローの入力検証とレスポンス整備
+  - status/search/sprint の正規化、`NotionClient` 呼び出し時の例外処理、構造化ログ出力、`listPbisResult` 応答フォーマットの固定を行う。
+  - Notion API 失敗時には `error` payload + HTTP 200 で返し、CloudWatch メトリクスに失敗件数を加算する。
+  - _Requirements: Requirement 1, Requirement 4_
+- [x] 3.3 `updateStoryPoint` フローの堅牢化
+  - point/memo のバリデーション、Notion 更新後の `updateStoryPointResult` 送信、`StoryPointUpdates` メトリクスの記録、メモリトライを含むエラー処理を追加する。
+  - Secrets Manager 取得や Notion レイテンシがタイムアウトした場合のリトライ/フォールバックをまとめ、`error` イベントのメッセージ指針を記述する。
+  - _Requirements: Requirement 1, Requirement 4_
+
+- [x] 4. CSR UI とランタイム設定を更新する
+- [x] 4.1 CloudFront 配信に合わせて環境値を注入する
+  - Terraform outputs から `NEXT_PUBLIC_WS_ENDPOINT` / `NEXT_PUBLIC_REST_ENDPOINT` をビルド時に埋め込み、静的配信でもエンドポイントが環境ごとに切り替わるようエクスポートスクリプトを整える。
+  - 接続ログやイベント履歴に CloudFront 由来の URL を表示し、環境やステージを明示する。
+  - _Requirements: Requirement 2, Requirement 3_
+- [x] 4.2 接続ステータスと操作ガードを仕上げる
+  - WebSocket ステータス UI を `connected/connecting/error/closed` で描画し、エラー時は更新ボタンを無効化する動作を固定する。
+  - 500/401 エラー時に joinToken 無効や過負荷を示すモーダル/トーストを追加し、ユーザーへの再接続導線を用意する。
+  - _Requirements: Requirement 2, Requirement 4_
+- [x] 4.3 PBI 表示とデフォルト選択ロジックを整える
+  - フィルター結果が空でない限り最初の PBI を自動選択し、status/sprint/assignee/lastEstimatedAt をテーブルで装飾して確認しやすくする。
+  - Story Point 更新フォームで memo や point 入力のバリデーションメッセージを強化する。
+  - _Requirements: Requirement 2_
+
+- [x] 5. 観測性とテストを整備する
+- [x] 5.1 ログとメトリクスの共通フォーマットを実装する
+  - Lambda から JSON 構造化ログを出力し、`ConnectionsActive`, `StoryPointUpdates`, `ListPbisLatency` を CloudWatch メトリクスに送る共通ヘルパーを実装する。
+  - Dynamo の activeConnections や `AccessDecision` をログに含め、監査で追跡できるようにする。
+  - _Requirements: Requirement 4_
+- [x] 5.2 アラームと接続上限監視を設定する
+  - `ConnectionsActive >= 10`、5xx、Throttles の CloudWatch アラームを作成し、SNS/Webhook 経由で通知できるよう Terraform に組み込む。
+  - Lambda スロットルや Secrets 取得失敗を検知するダッシュボードを CloudWatch で構築する。
+  - _Requirements: Requirement 4_
+- [x] 5.3 テストスイートを整備する
+  - WebSocket handler のユニットテスト (connect/disconnect/listPbis/updateStoryPoint/validator) を追加し、Dynamo/Notion モックとメトリクスを検証する。
+  - CSR UI の E2E/統合テストでフィルターと Story Point 更新、接続エラー UI、S3 export のビルドフローを確認し、Artillery/K6 で 10 接続を跨ぐ負荷試験を追加する。
+  - _Requirements: Requirement 1, Requirement 2, Requirement 4_

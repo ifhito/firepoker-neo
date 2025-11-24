@@ -1,0 +1,38 @@
+{
+  "alarm_names": {
+    "sensitive": false,
+    "type": [
+      "tuple",
+      [
+        "string",
+        "string",
+        "string"
+      ]
+    ],
+    "value": [
+      "firepocker-serverless-staging-connections-active",
+      "firepocker-serverless-staging-lambda-throttles",
+      "firepocker-serverless-staging-apigw-5xx"
+    ]
+  },
+  "session_access_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "firepocker-serverless-session-access-staging"
+  },
+  "static_site_domain": {
+    "sensitive": false,
+    "type": "string",
+    "value": "d1ptrpyrmkxoqa.cloudfront.net"
+  },
+  "ws_callback_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "https://p3cq819lh4.execute-api.ap-northeast-1.amazonaws.com/staging"
+  },
+  "ws_endpoint": {
+    "sensitive": false,
+    "type": "string",
+    "value": "wss://p3cq819lh4.execute-api.ap-northeast-1.amazonaws.com"
+  }
+}

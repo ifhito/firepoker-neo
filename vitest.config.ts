@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    include: ['container/tests/**/*.test.ts', 'serverless/tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
@@ -13,7 +14,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, 'container/src'),
+      '@serverless': path.resolve(__dirname, 'serverless/src'),
+      '@serverless/web': path.resolve(__dirname, 'serverless/web/src'),
     },
   },
 });

@@ -1,0 +1,51 @@
+# Implementation Plan
+
+- [x] 1. セッション作成 UI を構築してフォーム送信を可能にする
+- [x] 1.1 入力フォームと状態管理を実装する
+  - セッション名、ファシリテーター名、Notion バックログ指定、接続上限、公開設定を持つフォームを描画する。
+  - zod で必須項目と数値範囲を検証し、フィールド単位でエラーメッセージを表示する。
+  - 直近のフォーム設定を localStorage/sessionStorage に保存し、画面再訪時に再利用する。
+  - _Requirements: 1.1, 1.2, 4.1, 4.5_
+- [x] 1.2 REST エンドポイントとの通信と結果表示を実装する
+  - `POST ${NEXT_PUBLIC_REST_ENDPOINT}/sessions` へフォーム値を送信し、送信中はボタンや入力欄を無効化する。
+  - 正常応答時に `persistSessionIdentity` を呼び出して sessionId/joinToken を保存し、次画面への導線を表示する。
+  - 失敗応答ではレスポンス body のエラー理由をバナーとフィールドエラーに反映する。
+  - _Requirements: 1.3, 2.4, 4.2, 4.3, 4.4_
+- [x] 1.3 joinToken 表示とコピー体験を仕上げる
+  - 成功モーダルで joinToken を一度だけ表示し、コピー操作の結果をトーストなどで知らせる。
+  - クリップボード API が使えない環境では手動コピーの手順を案内する。
+  - _Requirements: 2.4, 2.5, 4.3_
+
+- [x] 2. SessionCreationLambda と HTTP API を実装してセッション登録を受け付ける
+- [x] 2.1 リクエスト検証と ID 生成ロジックを追加する
+  - `CreateSessionRequest` スキーマを共有ライブラリに定義し、Lambda で zod バリデーションを実施する。
+  - `generateSessionId` と `generateJoinToken` を呼び出し、接続上限・公開設定・バックログ情報を含むドメインオブジェクトを組み立てる。
+  - _Requirements: 1.1, 1.2, 3.1, 3.2_
+- [x] 2.2 DynamoDB 更新と joinToken 管理を実装する
+  - SessionMetadata テーブルと SessionAccess への書き込みを同一 Lambda で行い、失敗時は一貫性を保つようリトライ/補償を設計する。
+  - joinToken ハッシュが保存されたこと、最大接続数や公開設定がログに残ることを確認する。
+  - _Requirements: 1.3, 1.4, 2.1, 2.2, 2.3, 2.5, 3.3, 3.4, 3.5_
+- [x] 2.3 API Gateway HTTP と Terraform のリソースを追加する
+  - Lambda、HTTP API、IAM ロール、CloudWatch Logs、Usage Plan などを Terraform module に定義し、REST endpoint を outputs に含める。
+  - `export-with-outputs.cjs` を拡張して `NEXT_PUBLIC_REST_ENDPOINT` も自動注入する。
+  - _Requirements: 1.1, 4.1, 4.3_
+
+- [x] 3. 共有ドメインロジックとデータ層を整備する
+- [x] 3.1 SessionMetadataStore と型定義を作成する
+  - `session_metadata` テーブルへの Put/Get/TTL 設定をラップするストアを実装し、公開設定や有効期限を管理する。
+  - `SessionMetadataRecord` と `CreateSessionResponse` の TypeScript 型を共有パッケージに配置する。
+  - _Requirements: 1.4, 2.1, 3.1, 3.2, 3.3_
+- [x] 3.2 `publishSessionAccess` との整合性を確保する
+  - SessionAccess 更新とメタデータ保存の順序/トランザクション方針を整理し、異常系ログ/アラートを設計する。
+  - _Requirements: 2.2, 2.3, 3.1, 3.2, 3.5_
+
+- [x] 4. エラー処理・監視・テストを強化する
+- [x] 4.1 Lambda と UI のエラーハンドリング/監視を実装する
+  - バリデーション失敗、ビジネスルール違反、内部エラーを区別するレスポンスコード/メッセージを実装し、CloudWatch へ構造化ログとメトリクスを送信する。
+  - UI 側はフィールドエラーと全体エラーを出し分け、リトライ導線やサポート案内を表示する。
+  - _Requirements: 2.5, 3.5, 4.4_
+- [x] 4.2 テストスイートを整備する
+  - Lambda handler の正常系/バリデーション失敗/TTL エラーを単体テストで検証する。
+  - UI のフォーム送信フローと joinToken 表示を React Testing Library や Playwright で確認する。
+  - Terraform module 追加分の存在検証テストを `serverless/tests/terraformModules.test.ts` に加える。
+  - _Requirements: 1.*, 2.*, 3.*, 4.*_
